@@ -116,27 +116,36 @@ public class OrderService {
      */
     private String generateWhatsAppLink(Order order) {
         StringBuilder message = new StringBuilder();
-        message.append("*Nouvelle Commande : ").append(order.getOrderNumber()).append("*\n");
-        message.append("Date : ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))).append("\n\n");
+        message.append("*NOUVELLE COMMANDE SUCRE STORE*").append("\n\n");
+        message.append("Commande: #").append(order.getOrderNumber()).append("\n");
+        message.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))).append("\n\n");
 
-        message.append("*Client :*\n");
-        message.append("Nom : ").append(order.getCustomerName()).append("\n");
-        message.append("Tél : ").append(order.getCustomerPhone()).append("\n");
-        message.append("Adresse : ").append(order.getCustomerAddress()).append("\n\n");
+        message.append("*CLIENT*").append("\n");
+        message.append("Nom: ").append(order.getCustomerName()).append("\n");
+        message.append("Tel: ").append(order.getCustomerPhone()).append("\n");
+        message.append("Adresse: ").append(order.getCustomerAddress()).append("\n");
 
-        message.append("*Articles :*\n");
+        if (order.getCustomerLatitude() != null && order.getCustomerLongitude() != null) {
+            message.append("📍 Position GPS: https://www.google.com/maps?q=").append(order.getCustomerLatitude()).append(",").append(order.getCustomerLongitude()).append("\n");
+        }
+        message.append("\n");
+
+        message.append("*ARTICLES*").append("\n");
         for (OrderItem item : order.getItems()) {
-            message.append("- ").append(item.getProduct().getName())
-                    .append(" x").append(item.getQuantity())
+            message.append("- ").append(item.getQuantity()).append("x ")
+                    .append(item.getProduct().getName())
                     .append(" (").append(item.getTotalPrice()).append(" FCFA)\n");
         }
 
-        message.append("\n*Total : ").append(order.getTotal()).append(" FCFA*");
+        message.append("\n*TOTAL: ").append(order.getTotal()).append(" FCFA*").append("\n\n");
+
+        if (order.getCustomerNotes() != null && !order.getCustomerNotes().isEmpty()) {
+            message.append("Notes: ").append(order.getCustomerNotes());
+        }
 
         try {
             return "https://wa.me/" + appProperties.getWhatsappNumber() + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
         } catch (java.io.UnsupportedEncodingException e) {
-            // Ne devrait jamais arriver avec UTF-8 standard, mais on doit le gérer
             return "";
         }
     }
@@ -177,5 +186,16 @@ public class OrderService {
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Statut invalide : " + statusName);
         }
+    }
+
+    /**
+     * Supprime définitivement une commande (Super Admin).
+     */
+    @Transactional
+    public void deleteOrder(Long id) {
+        if (!orderRepository.existsById(id)) {
+            throw new RuntimeException("Commande introuvable ID: " + id);
+        }
+        orderRepository.deleteById(id);
     }
 }

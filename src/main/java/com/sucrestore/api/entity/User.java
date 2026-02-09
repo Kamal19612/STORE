@@ -90,6 +90,8 @@ public class User {
     public enum Role {
         SUPER_ADMIN, // Accès total
         ADMIN, // Accès à tout sauf suppression des autres admins
-        MANAGER      // Gestion des commandes et produits uniquement
+        MANAGER, // Gestion des commandes et produits uniquement
+        DELIVERY_AGENT, // Livreur : accès aux commandes à livrer
+        CUSTOMER      // Client : pour futur compte utilisateur
     }
 }

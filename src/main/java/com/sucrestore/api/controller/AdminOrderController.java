@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -23,7 +24,7 @@ import com.sucrestore.api.service.OrderService;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/admin/orders")
-@PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('MANAGER')")
 public class AdminOrderController {
 
     @Autowired
@@ -31,9 +32,6 @@ public class AdminOrderController {
 
     /**
      * GET /api/admin/orders : Liste de toutes les commandes.
-     */
-    /**
-     * GET /api/admin/orders : Liste de toutes les commandes (paginée).
      */
     @GetMapping
     public ResponseEntity<org.springframework.data.domain.Page<Order>> getAllOrders(org.springframework.data.domain.Pageable pageable) {
@@ -56,5 +54,16 @@ public class AdminOrderController {
     public ResponseEntity<Order> updateOrderStatus(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         String status = payload.get("status");
         return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
+    }
+
+    /**
+     * DELETE /api/admin/orders/{id} : Supprimer une commande. Réservé au
+     * SUPER_ADMIN.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<?> deleteOrder(@PathVariable Long id) {
+        orderService.deleteOrder(id);
+        return ResponseEntity.ok().build();
     }
 }
