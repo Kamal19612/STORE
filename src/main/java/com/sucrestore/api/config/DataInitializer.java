@@ -8,37 +8,43 @@ import org.springframework.stereotype.Component;
 import com.sucrestore.api.entity.User;
 import com.sucrestore.api.repository.UserRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
- * Composant d'initialisation des données au démarrage de l'application.
- * S'exécute automatiquement après le lancement du contexte Spring.
+ * Initialiseur de données s'exécutant au démarrage de l'application. Crée un
+ * utilisateur Super Admin par défaut si la base est vide.
  */
 @Component
+@Slf4j
 public class DataInitializer implements CommandLineRunner {
 
     @Autowired
-    UserRepository userRepository;
+    private UserRepository userRepository;
 
     @Autowired
-    PasswordEncoder passwordEncoder;
+    private PasswordEncoder passwordEncoder;
 
-    /**
-     * Méthode exécutée au démarrage. Vérifie si la base de données est vide et
-     * crée un utilisateur Admin par défaut si nécessaire.
-     */
     @Override
     public void run(String... args) throws Exception {
-        // Initialiser un Super Admin si aucun utilisateur n'existe
         if (userRepository.count() == 0) {
+            log.info("Base de données vide. Création du compte Super Admin par défaut...");
+
             User admin = User.builder()
                     .username("admin")
                     .email("admin@sucrestore.com")
-                    .password(passwordEncoder.encode("password123")) // Mot de passe par défaut
+                    .password(passwordEncoder.encode("admin123")) // À changer dès la première connexion
                     .role(User.Role.SUPER_ADMIN)
                     .active(true)
                     .build();
 
             userRepository.save(admin);
-            System.out.println("Super Admin User Created: admin / password123");
+
+            log.info("--------------------------------------------------");
+            log.info("IDENTIFIANTS PAR DÉFAUT CRÉÉS :");
+            log.info("Username : admin");
+            log.info("Password : admin123");
+            log.info("Rôle     : SUPER_ADMIN");
+            log.info("--------------------------------------------------");
         }
     }
 }

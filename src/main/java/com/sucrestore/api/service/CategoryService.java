@@ -27,4 +27,34 @@ public class CategoryService {
     public List<Category> getAllActiveCategories() {
         return categoryRepository.findByActiveTrue();
     }
+
+    // --- Méthodes Admin ---
+    @Transactional(readOnly = true)
+    public List<Category> getAllCategories() {
+        return categoryRepository.findAll();
+    }
+
+    @Transactional
+    public Category createCategory(Category category) {
+        return categoryRepository.save(category);
+    }
+
+    @Transactional
+    public Category updateCategory(Long id, Category categoryRequest) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Catégorie introuvable ID: " + id));
+        category.setName(categoryRequest.getName());
+        category.setSlug(categoryRequest.getSlug());
+        category.setDescription(categoryRequest.getDescription());
+        category.setActive(categoryRequest.isActive());
+        return categoryRepository.save(category);
+    }
+
+    @Transactional
+    public void deleteCategory(Long id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Catégorie introuvable ID: " + id));
+        category.setActive(false); // Soft delete
+        categoryRepository.save(category);
+    }
 }
