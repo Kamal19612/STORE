@@ -16,4 +16,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Intercepteur pour gérer les erreurs d'authentification
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Si le token est expiré ou invalide (401), déconnecter l'utilisateur
+    if (error.response?.status === 401) {
+      const currentPath = window.location.pathname;
+
+      // Ne pas rediriger si déjà sur la page de login
+      if (!currentPath.includes("/admin/login")) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("auth-storage");
+        window.location.href = "/admin/login";
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default api;
