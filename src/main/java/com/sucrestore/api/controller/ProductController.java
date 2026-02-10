@@ -1,17 +1,23 @@
 package com.sucrestore.api.controller;
 
-import com.sucrestore.api.dto.ProductResponse;
-import com.sucrestore.api.entity.Category;
-import com.sucrestore.api.service.CategoryService;
-import com.sucrestore.api.service.ProductService;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import com.sucrestore.api.dto.ProductResponse;
+import com.sucrestore.api.entity.Category;
+import com.sucrestore.api.service.CategoryService;
+import com.sucrestore.api.service.ProductService;
 
 /**
  * Contrôleur REST public pour le catalogue (Produits et Catégories). Accessible
@@ -44,7 +50,7 @@ public class ProductController {
     public ResponseEntity<Page<ProductResponse>> getProducts(
             @RequestParam(required = false) Long category,
             @RequestParam(required = false) String search,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 50, sort = "id", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable) {
 
         if (category != null) {
             return ResponseEntity.ok(productService.getProductsByCategory(category, pageable));

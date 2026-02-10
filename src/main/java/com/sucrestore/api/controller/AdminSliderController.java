@@ -55,27 +55,61 @@ public class AdminSliderController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SliderImage> addSliderImage(
             @RequestPart(value = "slider", required = false) String sliderJson,
-            @RequestPart("image") MultipartFile imageFile) throws IOException {
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) throws IOException {
 
         SliderImage sliderImage = new SliderImage();
         if (sliderJson != null) {
             sliderImage = objectMapper.readValue(sliderJson, SliderImage.class);
         }
 
-        String fileName = fileStorageService.storeFile(imageFile);
-        String imageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/uploads/")
-                .path(fileName)
-                .toUriString();
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String fileName = fileStorageService.storeFile(imageFile);
+            String imageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/uploads/")
+                    .path(fileName)
+                    .toUriString();
+            sliderImage.setImageUrl(imageUrl);
+        }
 
-        sliderImage.setImageUrl(imageUrl);
-
-        // Par défaut, mettre à la fin si l'ordre n'est pas précisé (simple implémentation)
         if (sliderImage.getDisplayOrder() == null) {
             sliderImage.setDisplayOrder(100);
         }
 
         return ResponseEntity.ok(sliderService.addSliderImage(sliderImage));
+    }
+
+    /**
+     * PUT /api/admin/slider/{id} : Modifier une image (Ordre, Active,
+     * Titre...).
+     */
+    @org.springframework.web.bind.annotation.PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<SliderImage> updateSliderImage(
+            @PathVariable Long id,
+            @RequestPart(value = "slider") String sliderJson,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) throws IOException {
+
+        SliderImage existingImage = sliderService.getSliderImageById(id); // Need to add this method in Service or use Repo directly if Service missing
+        SliderImage payload = objectMapper.readValue(sliderJson, SliderImage.class);
+
+        existingImage.setTitle(payload.getTitle());
+        existingImage.setActive(payload.isActive());
+        existingImage.setDisplayOrder(payload.getDisplayOrder());
+
+        // Update URL only if provided in payload (text) or file
+        if (payload.getImageUrl() != null && !payload.getImageUrl().isEmpty()) {
+            existingImage.setImageUrl(payload.getImageUrl());
+        }
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String fileName = fileStorageService.storeFile(imageFile);
+            String imageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/uploads/")
+                    .path(fileName)
+                    .toUriString();
+            existingImage.setImageUrl(imageUrl);
+        }
+
+        return ResponseEntity.ok(sliderService.addSliderImage(existingImage));
     }
 
     /**

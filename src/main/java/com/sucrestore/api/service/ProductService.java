@@ -72,11 +72,32 @@ public class ProductService {
                 .mainImage(product.getMainImage())
                 .categoryName(product.getCategory().getName())
                 .categorySlug(product.getCategory().getSlug())
+                .categoryId(product.getCategory().getId()) // Mappage ID Catégorie
+                .stock(product.getStock()) // Mappage Stock réel
                 .available(product.getStock() > 0)
                 .build();
     }
 
     // --- Méthodes Admin ---
+    /**
+     * Récupère tous les produits (actifs et inactifs) pour l'admin.
+     */
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getAllProducts(Pageable pageable) {
+        return productRepository.findAll(pageable)
+                .map(this::mapToResponse);
+    }
+
+    /**
+     * Récupère un produit par son ID pour l'admin.
+     */
+    @Transactional(readOnly = true)
+    public ProductResponse getProductById(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produit introuvable ID: " + id));
+        return mapToResponse(product);
+    }
+
     @Autowired
     private com.sucrestore.api.repository.CategoryRepository categoryRepository;
 

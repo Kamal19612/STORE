@@ -27,6 +27,12 @@ public class SliderService {
         return sliderImageRepository.findAll(Sort.by(Sort.Direction.ASC, "displayOrder"));
     }
 
+    @Transactional(readOnly = true)
+    public SliderImage getSliderImageById(Long id) {
+        return sliderImageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Image Slider introuvable ID: " + id));
+    }
+
     /**
      * Ajoute une nouvelle image au slider.
      */

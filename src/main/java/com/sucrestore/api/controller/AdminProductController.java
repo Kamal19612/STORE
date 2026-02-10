@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -44,10 +45,22 @@ public class AdminProductController {
     private ObjectMapper objectMapper;
 
     /**
-     * POST /api/admin/products : Créer un produit. Accepte Multipart/form-data
-     * : - product (JSON string) : Détails du produit - image (File) : Fichier
-     * image optionnel
+     * GET /api/admin/products : Liste tous les produits (paginé).
      */
+    @GetMapping
+    public ResponseEntity<org.springframework.data.domain.Page<ProductResponse>> getAllProducts(
+            @org.springframework.data.web.PageableDefault(size = 20) org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(productService.getAllProducts(pageable));
+    }
+
+    /**
+     * GET /api/admin/products/{id} : Détail d'un produit par ID.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductResponse> getProductById(@PathVariable Long id) {
+        return ResponseEntity.ok(productService.getProductById(id));
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ProductResponse> createProduct(
             @RequestPart("product") String productJson,
