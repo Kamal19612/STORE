@@ -21,5 +21,7 @@ public class ProductResponse {
     private String mainImage;
     private String categoryName;
     private String categorySlug;
+    private Long categoryId; // Ajouté pour l'édition Admin
+    private Integer stock; // Ajouté pour l'édition Admin
     private boolean available; // basé sur stock > 0
 }

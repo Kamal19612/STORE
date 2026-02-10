@@ -25,6 +25,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Autowired
     UserRepository userRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     @Override
     @Transactional // Transactionnel car on pourrait charger des collections Lazy (ex: roles)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -61,5 +64,41 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Rôle invalide : " + roleName);
         }
+    }
+
+    @Transactional
+    public User createUser(User user) {
+        if (userRepository.existsByUsername(user.getUsername())) {
+            throw new RuntimeException("Nom d'utilisateur déjà pris !");
+        }
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new RuntimeException("Email déjà utilisé !");
+        }
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User updateUser(Long id, User userRequest) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable ID: " + id));
+
+        user.setUsername(userRequest.getUsername());
+        user.setEmail(userRequest.getEmail());
+        user.setRole(userRequest.getRole());
+        user.setActive(userRequest.isActive());
+
+        // Update password only if provided (non-empty)
+        if (userRequest.getPassword() != null && !userRequest.getPassword().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(userRequest.getPassword()));
+        }
+
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public void deleteUser(Long id) {
+        userRepository.deleteById(id);
     }
 }

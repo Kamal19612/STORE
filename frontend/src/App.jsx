@@ -8,6 +8,13 @@ import Home from "./pages/public/Home";
 import Checkout from "./pages/public/Checkout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminProductList from "./pages/admin/products/AdminProductList";
+import AdminProductForm from "./pages/admin/products/AdminProductForm";
+import AdminOrderList from "./pages/admin/orders/AdminOrderList";
+import AdminOrderDetail from "./pages/admin/orders/AdminOrderDetail";
+import AdminSlider from "./pages/admin/slider/AdminSlider";
+import AdminUserList from "./pages/admin/users/AdminUserList";
+import AdminUserForm from "./pages/admin/users/AdminUserForm";
 import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
@@ -54,58 +61,33 @@ function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
 
           {/* Placeholders pour les futures pages admin */}
-          <Route
-            path="orders"
-            element={
-              <div className="text-center py-20">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Page Commandes en construction
-                </h2>
-              </div>
-            }
-          />
-          <Route
-            path="orders/:id"
-            element={
-              <div className="text-center py-20">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Détail Commande en construction
-                </h2>
-              </div>
-            }
-          />
-          <Route
-            path="products"
-            element={
-              <div className="text-center py-20">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Gestion Produits en construction
-                </h2>
-              </div>
-            }
-          />
-          <Route
-            path="slider"
-            element={
-              <div className="text-center py-20">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Gestion Carrousel en construction
-                </h2>
-              </div>
-            }
-          />
+          <Route path="orders" element={<AdminOrderList />} />
+          <Route path="orders/:id" element={<AdminOrderDetail />} />
+          <Route path="products" element={<AdminProductList />} />
+          <Route path="products/new" element={<AdminProductForm />} />
+          <Route path="products/edit/:id" element={<AdminProductForm />} />
+          <Route path="slider" element={<AdminSlider />} />
           <Route
             path="users"
             element={
               <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
-                <div className="text-center py-20">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    Gestion Utilisateurs en construction
-                  </h2>
-                  <p className="text-gray-600 mt-2">
-                    Réservé aux SUPER_ADMIN uniquement
-                  </p>
-                </div>
+                <AdminUserList />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="users/new"
+            element={
+              <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
+                <AdminUserForm />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="users/edit/:id"
+            element={
+              <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
+                <AdminUserForm />
               </PrivateRoute>
             }
           />
