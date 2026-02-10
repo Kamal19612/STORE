@@ -30,5 +30,5 @@ app:
 
 server:
   port: 8080
-  servlet:
-    context-path: /api # Toutes les URLs commenceront par /api (ex: /api/products)
+  # servlet:
+  # context-path: /api # RETIRÉ : Cause un double préfixe /api/api car les contrôleurs ont déjà @RequestMapping("/api")
