@@ -1,11 +1,38 @@
 import useCartStore from "../../store/cartStore";
+import { toast } from "react-toastify";
+import { Check, ShoppingBag } from "lucide-react";
 
 const ProductCard = ({ product }) => {
-  const addItem = useCartStore((state) => state.addItem);
+  const { addItem, removeItem, items } = useCartStore((state) => ({
+    addItem: state.addItem,
+    removeItem: state.removeItem,
+    items: state.items,
+  }));
 
-  const handleAddToCart = (e) => {
+  const isInCart = items.some((item) => item.id === product.id);
+
+  const handleToggleCart = (e) => {
     e.stopPropagation();
-    addItem(product);
+    if (isInCart) {
+      removeItem(product.id);
+    } else {
+      if (items.length === 0) {
+        toast.info(
+          <div className="flex flex-col gap-1">
+            <span className="font-bold">Excellent choix ! 🍬</span>
+            <span className="text-sm">
+              N'oubliez pas de vérifier votre panier.
+            </span>
+          </div>,
+          {
+            icon: "🛒",
+            position: "top-right",
+            autoClose: 4000,
+          },
+        );
+      }
+      addItem(product);
+    }
   };
 
   return (
@@ -48,24 +75,19 @@ const ProductCard = ({ product }) => {
 
           {product.available ? (
             <button
-              onClick={handleAddToCart}
-              className="btn-primary p-2 flex items-center justify-center rounded-full h-10 w-10 hover:scale-105 transition-transform"
-              title="Ajouter au panier"
+              onClick={handleToggleCart}
+              className={`p-2 flex items-center justify-center rounded-full h-10 w-10 transition-all duration-300 shadow-md ${
+                isInCart
+                  ? "bg-green-500 hover:bg-green-600 text-white scale-110"
+                  : "btn-primary hover:scale-105"
+              }`}
+              title={isInCart ? "Retirer du panier" : "Ajouter au panier"}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              {isInCart ? (
+                <Check className="h-6 w-6" />
+              ) : (
+                <ShoppingBag className="h-5 w-5" />
+              )}
             </button>
           ) : (
             <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded border border-red-100">

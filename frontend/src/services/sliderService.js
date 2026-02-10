@@ -7,6 +7,12 @@ const sliderService = {
     return response.data;
   },
 
+  // Récupérer les images pour le public
+  getPublicAll: async () => {
+    const response = await api.get("/slider");
+    return response.data;
+  },
+
   // Créer une image (FormData)
   create: async (formData) => {
     const response = await api.post("/admin/slider", formData, {

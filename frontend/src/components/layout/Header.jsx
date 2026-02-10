@@ -53,9 +53,11 @@ const Header = () => {
             </button>
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 rounded-full hover:bg-secondary-light transition-colors text-primary bg-secondary-light/50"
+              className={`relative p-2 rounded-full hover:bg-secondary-light transition-colors text-primary bg-secondary-light/50 ${itemCount > 0 ? "animate-pulse ring-2 ring-primary/50" : ""}`}
             >
-              <ShoppingCart className="h-6 w-6" />
+              <ShoppingCart
+                className={`h-6 w-6 ${itemCount > 0 ? "text-primary-light" : ""}`}
+              />
               {itemCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white animate-bounce-subtle">
                   {itemCount}
