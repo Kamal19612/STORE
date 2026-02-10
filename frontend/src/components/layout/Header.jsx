@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ShoppingCart, User, Search, Menu } from "lucide-react";
+import { ShoppingCart, Search, Menu } from "lucide-react";
 import { useState } from "react";
 import useCartStore from "../../store/cartStore";
 import CartDrawer from "../cart/CartDrawer";
@@ -41,25 +41,9 @@ const Header = () => {
           </div>
 
           {/* Navigation Desktop */}
+          {/* Navigation Desktop supprimée : Le logo suffit pour l'accueil */}
           <nav className="hidden md:flex space-x-8">
-            <Link
-              to="/"
-              className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Accueil
-            </Link>
-            <Link
-              to="/products"
-              className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Boutique
-            </Link>
-            <Link
-              to="/about"
-              className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              À Propos
-            </Link>
+            {/* Menu simplifié : Pas de liens de navigation explicites demandés */}
           </nav>
 
           {/* Actions */}
@@ -67,12 +51,6 @@ const Header = () => {
             <button className="p-2 rounded-full hover:bg-secondary-light transition-colors text-gray-300">
               <Search className="h-5 w-5" />
             </button>
-            <Link
-              to="/admin/login"
-              className="p-2 rounded-full hover:bg-secondary-light transition-colors text-gray-300"
-            >
-              <User className="h-5 w-5" />
-            </Link>
             <button
               onClick={() => setIsCartOpen(true)}
               className="relative p-2 rounded-full hover:bg-secondary-light transition-colors text-primary bg-secondary-light/50"
