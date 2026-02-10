@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import productService from "../../services/productService";
 import ProductCard from "../../components/product/ProductCard";
+import Slider from "../../components/public/Slider";
 
 const Home = () => {
   const [products, setProducts] = useState([]);
@@ -52,6 +53,9 @@ const Home = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Carrousel */}
+      <Slider />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-secondary tracking-tight">
