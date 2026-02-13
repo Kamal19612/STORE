@@ -1,11 +1,11 @@
 package com.sucrestore.api.dto;
 
+import java.math.BigDecimal;
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-
-import java.math.BigDecimal;
 
 /**
  * DTO pour la création ou modification d'un produit (Admin).
@@ -36,8 +36,11 @@ public class ProductRequest {
     // Ce champ sert si l'admin fournit une URL directe
     private String imageUrl;
 
-    @NotNull(message = "La catégorie est obligatoire")
+    // Modifié : categoryId n'est plus @NotNull car on peut fournir un Nom
     private Long categoryId;
+
+    // Nouveau champ pour la création dynamique ou recherche par nom
+    private String categoryName;
 
     private boolean active = true;
 }

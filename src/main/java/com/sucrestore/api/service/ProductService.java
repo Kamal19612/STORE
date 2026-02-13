@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sucrestore.api.dto.ProductResponse;
+import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.ProductRepository;
 
@@ -115,9 +116,9 @@ public class ProductService {
                 .oldPrice(request.getOldPrice())
                 .stock(request.getStock())
                 .active(request.isActive())
+                .active(request.isActive())
                 .mainImage(imageUrl) // URL ou chemin fichier
-                .category(categoryRepository.findById(request.getCategoryId())
-                        .orElseThrow(() -> new RuntimeException("Catégorie introuvable")))
+                .category(resolveCategory(request))
                 .build();
 
         return mapToResponse(productRepository.save(product));
@@ -145,9 +146,10 @@ public class ProductService {
             product.setMainImage(imageUrl);
         }
 
-        if (!product.getCategory().getId().equals(request.getCategoryId())) {
-            product.setCategory(categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Catégorie introuvable")));
+        // Gestion Catégorie (ID ou Nom)
+        Category category = resolveCategory(request);
+        if (!product.getCategory().getId().equals(category.getId())) {
+            product.setCategory(category);
         }
 
         return mapToResponse(productRepository.save(product));
@@ -164,4 +166,85 @@ public class ProductService {
         product.setActive(false); // Soft delete
         productRepository.save(product);
     }
+
+    /**
+     * Helper pour trouver ou créer une catégorie selon la requête.
+     */
+    private Category resolveCategory(com.sucrestore.api.dto.ProductRequest request) {
+        // Priorité 1: Recherche par ID si présent
+        if (request.getCategoryId() != null) {
+            return categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Catégorie introuvable ID: " + request.getCategoryId()));
+        }
+
+        // Priorité 2: Recherche ou Création par Nom
+        if (request.getCategoryName() != null && !request.getCategoryName().trim().isEmpty()) {
+            String name = request.getCategoryName().trim();
+            return categoryRepository.findByNameIgnoreCase(name)
+                    .orElseGet(() -> createNewCategory(name));
+        }
+
+        throw new RuntimeException("Une catégorie (ID ou Nom) est requise.");
+    }
+
+    private Category createNewCategory(String name) {
+        // Crée un slug basique
+        String slug = name.toLowerCase()
+                .replaceAll("[^a-z0-9]", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+
+        Category newCategory = Category.builder()
+                .name(name)
+                .slug(slug)
+                .active(true)
+                .build();
+
+        return categoryRepository.save(newCategory);
+    }
+
+    /**
+     * Importe un produit (Création ou Mise à jour basée sur le Slug). Méthode
+     * transactionnelle isolée pour permettre le traitement par lots "Best
+     * Effort".
+     */
+    @Transactional
+    public ProductResponse importProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl) {
+        // Validation basique
+        if (request.getSlug() == null || request.getSlug().isEmpty()) {
+            throw new RuntimeException("Le slug est obligatoire pour l'import");
+        }
+
+        // Recherche par Slug
+        return productRepository.findBySlug(request.getSlug())
+                .map(existingProduct -> {
+                    // Update
+                    existingProduct.setName(request.getName());
+                    existingProduct.setShortDescription(request.getShortDescription());
+                    existingProduct.setDescription(request.getDescription());
+                    existingProduct.setPrice(request.getPrice());
+                    // On ne touche pas oldPrice en import auto sauf si spécifié (ici non géré dans CSV simple)
+
+                    // Gestion intelligente du stock: on remplace ou on ajoute ? Ici on remplace pour la synchro.
+                    existingProduct.setStock(request.getStock());
+                    existingProduct.setActive(true); // Réactiver si importé
+
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        existingProduct.setMainImage(imageUrl);
+                    }
+
+                    // Synchro catégorie
+                    Category category = resolveCategory(request);
+                    if (!existingProduct.getCategory().getId().equals(category.getId())) {
+                        existingProduct.setCategory(category);
+                    }
+
+                    return mapToResponse(productRepository.save(existingProduct));
+                })
+                .orElseGet(() -> {
+                    // Create
+                    return createProduct(request, imageUrl);
+                });
+    }
+
 }

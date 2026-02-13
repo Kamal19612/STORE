@@ -14,7 +14,10 @@ import AdminOrderList from "./pages/admin/orders/AdminOrderList";
 import AdminOrderDetail from "./pages/admin/orders/AdminOrderDetail";
 import AdminSlider from "./pages/admin/slider/AdminSlider";
 import AdminUserList from "./pages/admin/users/AdminUserList";
+
 import AdminUserForm from "./pages/admin/users/AdminUserForm";
+import DeliveryLayout from "./layouts/DeliveryLayout";
+import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
@@ -52,7 +55,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            <PrivateRoute>
+            <PrivateRoute allowedRoles={["ADMIN", "SUPER_ADMIN", "MANAGER"]}>
               <AdminLayout />
             </PrivateRoute>
           }
@@ -92,9 +95,35 @@ function App() {
             }
           />
         </Route>
+
+        {/* Routes Livreur (PROTÉGÉES) */}
+        <Route
+          path="/delivery"
+          element={
+            <PrivateRoute
+              allowedRoles={["DELIVERY_AGENT", "ADMIN", "SUPER_ADMIN"]}
+            >
+              <DeliveryLayout />
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<DeliveryDashboard />} />
+          <Route path="dashboard" element={<DeliveryDashboard />} />
+        </Route>
       </Routes>
 
-      <ToastContainer position="bottom-right" />
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        style={{ top: "100px", minWidth: "300px" }}
+      />
     </Router>
   );
 }

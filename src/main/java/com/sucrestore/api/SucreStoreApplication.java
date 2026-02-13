@@ -17,6 +17,7 @@ import com.sucrestore.api.config.AppProperties;
  */
 @SpringBootApplication
 @EnableConfigurationProperties(AppProperties.class)
+@org.springframework.scheduling.annotation.EnableScheduling
 public class SucreStoreApplication {
 
     public static void main(String[] args) {

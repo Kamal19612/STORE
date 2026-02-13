@@ -1,13 +1,11 @@
 import useCartStore from "../../store/cartStore";
 import { toast } from "react-toastify";
-import { Check, ShoppingBag } from "lucide-react";
+import { Check, ShoppingBag, Eye } from "lucide-react";
 
 const ProductCard = ({ product }) => {
-  const { addItem, removeItem, items } = useCartStore((state) => ({
-    addItem: state.addItem,
-    removeItem: state.removeItem,
-    items: state.items,
-  }));
+  const addItem = useCartStore((state) => state.addItem);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const items = useCartStore((state) => state.items);
 
   const isInCart = items.some((item) => item.id === product.id);
 
@@ -36,63 +34,87 @@ const ProductCard = ({ product }) => {
   };
 
   return (
-    <div className="product-card bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 group">
-      <div className="relative aspect-square overflow-hidden bg-gray-50">
+    <div className="product-card bg-white rounded-lg overflow-hidden shadow-md border border-gray-100 group hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
+      <div className="relative h-48 overflow-hidden bg-gray-200 flex items-center justify-center cursor-pointer">
         <img
           src={
             product.mainImage ||
             "https://via.placeholder.com/300?text=Sucre+Store"
           }
           alt={product.name}
-          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+          className="h-full w-full object-cover transition-transform duration-300"
         />
+
+        {/* View Details Button - Appears on Hover */}
+        <button
+          className="absolute top-2 left-2 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-primary text-secondary hover:scale-110"
+          title="Voir les détails"
+        >
+          <Eye className="h-5 w-5" />
+        </button>
+
+        {/* Promo Badge */}
         {product.oldPrice && (
-          <div className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+          <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
             PROMO
+          </div>
+        )}
+
+        {/* Not Available Badge (Matches PHP) */}
+        {!product.available && (
+          <div className="absolute top-2 right-2 bg-secondary text-white text-xs px-2 py-1 rounded">
+            Non disponible
           </div>
         )}
       </div>
 
       <div className="p-4">
-        <h3 className="text-sm font-medium text-secondary-light line-clamp-1">
-          {product.categoryName}
-        </h3>
-        <h2 className="text-lg font-bold text-secondary mt-1 line-clamp-2 min-h-[3.5rem]">
+        <div className="mb-2">
+          <span className="text-xs font-semibold text-primary uppercase">
+            {product.categoryName || "Catégorie"}
+          </span>
+        </div>
+
+        <h2 className="text-lg font-bold text-secondary mb-2 line-clamp-2 min-h-[3.5rem]">
           {product.name}
         </h2>
 
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex flex-col">
-            {product.oldPrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {product.oldPrice.toLocaleString()} FCFA
-              </span>
-            )}
-            <span className="text-xl font-bold text-primary">
-              {product.price.toLocaleString()} FCFA
-            </span>
-          </div>
+        <p className="text-sm text-gray-600 mb-3">
+          {/* Description mocked for now if not available in prop */}
+          {product.description || "Découvrez ce délice..."}
+        </p>
+
+        <div className="flex items-center justify-between mt-auto">
+          <span className="text-2xl font-bold text-primary">
+            {product.price.toLocaleString()} FCFA
+          </span>
 
           {product.available ? (
             <button
               onClick={handleToggleCart}
-              className={`p-2 flex items-center justify-center rounded-full h-10 w-10 transition-all duration-300 shadow-md ${
+              className={`px-4 py-2 rounded-lg transition-all duration-200 shadow-sm flex items-center justify-center ${
                 isInCart
-                  ? "bg-green-500 hover:bg-green-600 text-white scale-110"
-                  : "btn-primary hover:scale-105"
+                  ? "bg-green-500 hover:bg-green-600 text-white"
+                  : "bg-primary hover:bg-primary-dark text-secondary"
               }`}
               title={isInCart ? "Retirer du panier" : "Ajouter au panier"}
             >
               {isInCart ? (
-                <Check className="h-6 w-6" />
+                <Check className="h-5 w-5" />
               ) : (
                 <ShoppingBag className="h-5 w-5" />
               )}
             </button>
           ) : (
-            <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded border border-red-100">
-              Rupture
-            </span>
+            <button
+              className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
+              disabled
+            >
+              <div className="h-5 w-5 relative">
+                <div className="absolute inset-0 transform rotate-45 bg-white h-0.5 w-full top-1/2 -mt-px"></div>
+                <div className="absolute inset-0 transform -rotate-45 bg-white h-0.5 w-full top-1/2 -mt-px"></div>
+              </div>
+            </button>
           )}
         </div>
       </div>

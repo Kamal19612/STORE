@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,11 +46,18 @@ public class AdminProductController {
     private ObjectMapper objectMapper;
 
     /**
-     * GET /api/admin/products : Liste tous les produits (paginé).
+     * GET /api/admin/products : Liste tous les produits (paginé, avec recherche
+     * optionnelle).
      */
     @GetMapping
     public ResponseEntity<org.springframework.data.domain.Page<ProductResponse>> getAllProducts(
+            @RequestParam(value = "search", required = false, defaultValue = "") String search,
             @org.springframework.data.web.PageableDefault(size = 20) org.springframework.data.domain.Pageable pageable) {
+        // Si une recherche est fournie, utiliser la méthode de recherche
+        if (search != null && !search.trim().isEmpty()) {
+            return ResponseEntity.ok(productService.searchProducts(search, pageable));
+        }
+        // Sinon, retourner tous les produits
         return ResponseEntity.ok(productService.getAllProducts(pageable));
     }
 

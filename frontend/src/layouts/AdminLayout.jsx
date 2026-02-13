@@ -1,132 +1,135 @@
-import { Outlet } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import useAuthStore from "../store/authStore";
+import {
+  Menu,
+  X,
+  LayoutDashboard,
+  ShoppingBag,
+  Package,
+  Image as ImageIcon,
+  Users,
+  LogOut,
+} from "lucide-react";
 
 /**
  * Composant de layout pour les pages admin
- * Affiche une sidebar de navigation et un header
+ * Sidebar statique sur Desktop, Tiroir sur Mobile
  */
 const AdminLayout = () => {
   const { user, logout } = useAuthStore();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     window.location.href = "/admin/login";
   };
 
+  const closeSidebar = () => setIsSidebarOpen(false);
+
+  const isActive = (path) => location.pathname.startsWith(path);
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={closeSidebar}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-700">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
-            SUCRE STORE
-          </h1>
-          <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col transition-transform duration-300 ease-in-out
+          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}
+      >
+        {/* Logo & Close Button */}
+        <div className="p-6 border-b border-gray-700 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
+              SUCRE STORE
+            </h1>
+            <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
+          </div>
+          <button
+            onClick={closeSidebar}
+            className="lg:hidden text-gray-400 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          <a
-            href="/admin/dashboard"
-            className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <Link
+            to="/admin/dashboard"
+            onClick={closeSidebar}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive("/admin/dashboard")
+                ? "bg-primary text-secondary font-bold"
+                : "hover:bg-gray-700 text-gray-300"
+            }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              />
-            </svg>
+            <LayoutDashboard className="w-5 h-5" />
             <span>Dashboard</span>
-          </a>
+          </Link>
 
-          <a
-            href="/admin/orders"
-            className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+          <Link
+            to="/admin/orders"
+            onClick={closeSidebar}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive("/admin/orders")
+                ? "bg-primary text-secondary font-bold"
+                : "hover:bg-gray-700 text-gray-300"
+            }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-              />
-            </svg>
+            <ShoppingBag className="w-5 h-5" />
             <span>Commandes</span>
-          </a>
+          </Link>
 
-          <a
-            href="/admin/products"
-            className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+          <Link
+            to="/admin/products"
+            onClick={closeSidebar}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive("/admin/products")
+                ? "bg-primary text-secondary font-bold"
+                : "hover:bg-gray-700 text-gray-300"
+            }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
+            <Package className="w-5 h-5" />
             <span>Produits</span>
-          </a>
+          </Link>
 
-          <a
-            href="/admin/slider"
-            className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+          <Link
+            to="/admin/slider"
+            onClick={closeSidebar}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive("/admin/slider")
+                ? "bg-primary text-secondary font-bold"
+                : "hover:bg-gray-700 text-gray-300"
+            }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
+            <ImageIcon className="w-5 h-5" />
             <span>Carrousel</span>
-          </a>
+          </Link>
 
           {user?.role === "SUPER_ADMIN" && (
-            <a
-              href="/admin/users"
-              className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors"
+            <Link
+              to="/admin/users"
+              onClick={closeSidebar}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive("/admin/users")
+                  ? "bg-primary text-secondary font-bold"
+                  : "hover:bg-gray-700 text-gray-300"
+              }`}
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
+              <Users className="w-5 h-5" />
               <span>Utilisateurs</span>
-            </a>
+            </Link>
           )}
         </nav>
 
@@ -151,34 +154,31 @@ const AdminLayout = () => {
             onClick={handleLogout}
             className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
+            <LogOut className="w-4 h-4" />
             <span>Déconnexion</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-8 py-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-8 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-gray-800">
-              Tableau de bord
-            </h2>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-md hover:bg-gray-100"
+              >
+                <Menu className="h-6 w-6 text-gray-600" />
+              </button>
+              <h2 className="text-xl lg:text-2xl font-semibold text-gray-800 truncate">
+                Tableau de bord
+              </h2>
+            </div>
+
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 hidden sm:block">
                 {new Date().toLocaleDateString("fr-FR", {
                   weekday: "long",
                   year: "numeric",
@@ -191,7 +191,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-8 overflow-auto">
+        <main className="flex-1 p-4 lg:p-8 overflow-auto">
           <Outlet />
         </main>
       </div>

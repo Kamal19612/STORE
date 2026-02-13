@@ -53,15 +53,15 @@ const AdminSlider = () => {
     e.preventDefault();
     try {
       const formData = new FormData();
-      formData.append(
-        "slider",
-        JSON.stringify({
-          title: newSlide.title,
-          imageUrl: newSlide.imageUrl, // URL manuelle
-          displayOrder: newSlide.displayOrder,
-          active: newSlide.active,
-        }),
-      );
+      formData.append("title", newSlide.title);
+      formData.append("description", newSlide.title);
+      formData.append("displayOrder", newSlide.displayOrder);
+      formData.append("active", newSlide.active);
+
+      if (newSlide.imageUrl) {
+        formData.append("imageUrl", newSlide.imageUrl);
+      }
+
       if (newSlide.imageFile) {
         formData.append("image", newSlide.imageFile);
       }
@@ -79,7 +79,10 @@ const AdminSlider = () => {
       setPreviewUrl("");
       fetchSlides();
     } catch (error) {
-      toast.error("Erreur ajout image");
+      console.error("Erreur détaillée:", error);
+      const errorMsg =
+        error.response?.data?.error || error.message || "Erreur inconnue";
+      toast.error("Erreur: " + errorMsg);
     }
   };
 

@@ -20,6 +20,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     Optional<Category> findBySlug(String slug);
 
     /**
+     * Trouve une catégorie par son nom (ignore casse).
+     */
+    Optional<Category> findByNameIgnoreCase(String name);
+
+    /**
      * Liste toutes les catégories actives.
      */
     List<Category> findByActiveTrue();

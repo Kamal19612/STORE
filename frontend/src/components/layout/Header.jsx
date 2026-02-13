@@ -20,49 +20,33 @@ const Header = () => {
           </div>
 
           {/* Logo */}
-          <div className="flex-shrink-0 flex items-center h-full py-2">
+          <div className="flex-shrink-0 flex items-center h-full py-4">
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="bg-white p-1 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                <img
-                  src="/logo-sucre.png"
-                  alt="Candy Sucré Store"
-                  className="h-12 md:h-14 w-auto object-contain"
-                />
-              </div>
-              <div className="hidden lg:flex flex-col -gap-1">
-                <span className="text-xl font-bold tracking-tight text-white font-brand-serif leading-tight">
-                  Candy{" "}
-                  <span className="text-primary tracking-widest uppercase text-xs block">
-                    Sucré Store
-                  </span>
-                </span>
-              </div>
+              <img
+                src="https://sucrestore.web-genious.com/images/logo-sucre.png"
+                alt="Candy Sucré Store"
+                className="h-12 w-auto object-contain"
+              />
             </Link>
           </div>
 
           {/* Navigation Desktop */}
-          {/* Navigation Desktop supprimée : Le logo suffit pour l'accueil */}
-          <nav className="hidden md:flex space-x-8">
-            {/* Menu simplifié : Pas de liens de navigation explicites demandés */}
-          </nav>
+          <nav className="hidden md:flex space-x-8"></nav>
 
           {/* Actions */}
           <div className="flex items-center space-x-4">
-            <button className="p-2 rounded-full hover:bg-secondary-light transition-colors text-gray-300">
-              <Search className="h-5 w-5" />
-            </button>
             <button
+              id="cart-toggle"
               onClick={() => setIsCartOpen(true)}
-              className={`relative p-2 rounded-full hover:bg-secondary-light transition-colors text-primary bg-secondary-light/50 ${itemCount > 0 ? "animate-pulse ring-2 ring-primary/50" : ""}`}
+              className="relative px-4 py-2 rounded-lg transition-transform hover:scale-105 active:scale-95 bg-primary text-secondary"
             >
-              <ShoppingCart
-                className={`h-6 w-6 ${itemCount > 0 ? "text-primary-light" : ""}`}
-              />
-              {itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white animate-bounce-subtle">
-                  {itemCount}
-                </span>
-              )}
+              <ShoppingCart className="h-6 w-6" />
+              <span
+                id="cart-count"
+                className={`absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-white text-xs font-bold shadow-sm ${itemCount > 0 ? "animate-bounce-scale" : ""}`}
+              >
+                {itemCount}
+              </span>
             </button>
           </div>
         </div>

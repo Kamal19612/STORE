@@ -3,49 +3,68 @@ package com.sucrestore.api.service;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import com.sucrestore.api.entity.SliderImage;
-import com.sucrestore.api.repository.SliderImageRepository;
+import com.sucrestore.api.entity.Slider;
+import com.sucrestore.api.repository.SliderRepository;
 
-/**
- * Service gérant les images du slider (carrousel).
- */
 @Service
 public class SliderService {
 
     @Autowired
-    private SliderImageRepository sliderImageRepository;
+    private SliderRepository sliderRepository;
 
-    /**
-     * Récupère toutes les images du slider triées par ordre d'affichage.
-     */
-    @Transactional(readOnly = true)
-    public List<SliderImage> getAllSliderImages() {
-        return sliderImageRepository.findAll(Sort.by(Sort.Direction.ASC, "displayOrder"));
+    @Autowired
+    private FileStorageService fileStorageService;
+
+    // Récupérer tous les sliders (pour Admin)
+    public List<Slider> getAllSliders() {
+        return sliderRepository.findAllByOrderByDisplayOrderAsc();
     }
 
-    @Transactional(readOnly = true)
-    public SliderImage getSliderImageById(Long id) {
-        return sliderImageRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Image Slider introuvable ID: " + id));
+    // Récupérer les sliders actifs (pour Public)
+    public List<Slider> getActiveSliders() {
+        return sliderRepository.findAllByActiveTrueOrderByDisplayOrderAsc();
     }
 
-    /**
-     * Ajoute une nouvelle image au slider.
-     */
-    @Transactional
-    public SliderImage addSliderImage(SliderImage sliderImage) {
-        return sliderImageRepository.save(sliderImage);
+    // Créer un slider (fichier ou URL optionnels)
+    public Slider createSlider(String title, String description, MultipartFile imageFile, String imageUrl, Integer order, Boolean active) {
+        String finalImageUrl = imageUrl;
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String fileName = fileStorageService.storeFile(imageFile);
+            finalImageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/uploads/")
+                    .path(fileName)
+                    .toUriString();
+        }
+
+        if (finalImageUrl == null || finalImageUrl.trim().isEmpty()) {
+            throw new RuntimeException("Une image est obligatoire (Fichier ou URL).");
+        }
+
+        Slider slider = Slider.builder()
+                .title(title)
+                .description(description)
+                .imageUrl(finalImageUrl)
+                .displayOrder(order != null ? order : 10)
+                .active(active != null ? active : true)
+                .build();
+
+        return sliderRepository.save(slider);
     }
 
-    /**
-     * Supprime une image du slider.
-     */
-    @Transactional
-    public void deleteSliderImage(Long id) {
-        sliderImageRepository.deleteById(id);
+    // Supprimer un slider
+    public void deleteSlider(Long id) {
+        sliderRepository.deleteById(id);
+    }
+
+    // Toggle Active
+    public Slider toggleActive(Long id) {
+        Slider slider = sliderRepository.findById(id).orElseThrow(() -> new RuntimeException("Slider introuvable"));
+        slider.setActive(!slider.isActive());
+        return sliderRepository.save(slider);
     }
 }
