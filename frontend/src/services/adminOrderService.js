@@ -2,11 +2,9 @@ import api from "./api";
 
 const adminOrderService = {
   // Récupérer toutes les commandes (paginé)
-  getAllOrders: async (page = 0, size = 10) => {
+  getAllOrders: async (page = 0, size = 50) => {
     // Le backend AdminOrderController utilise Pageable
-    const response = await api.get(
-      `/admin/orders?page=${page}&size=${size}&sort=createdAt,desc`,
-    );
+    const response = await api.get(`/admin/orders?page=${page}&size=${size}`);
     return response.data;
   },
 

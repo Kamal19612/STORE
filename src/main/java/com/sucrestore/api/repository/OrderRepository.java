@@ -25,4 +25,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Trouve les commandes ayant l'un des statuts donnés.
      */
     Page<Order> findByStatusIn(List<Order.Status> statuses, Pageable pageable);
+
+    /**
+     * Compte le nombre de commandes par statut
+     */
+    Long countByStatus(Order.Status status);
 }

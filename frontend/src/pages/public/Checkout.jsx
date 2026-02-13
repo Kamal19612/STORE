@@ -15,8 +15,14 @@ import api from "../../services/api";
 import { toast } from "react-toastify";
 
 const Checkout = () => {
-  const { items, total, clearCart } = useCartStore();
+  const { items, clearCart } = useCartStore();
   const navigate = useNavigate();
+
+  // Calculer le total directement pour garantir la réactivité
+  const total = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
 
   const [formData, setFormData] = useState({
     customerName: "",

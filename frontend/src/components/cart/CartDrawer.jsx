@@ -3,8 +3,13 @@ import useCartStore from "../../store/cartStore";
 import { useNavigate } from "react-router-dom";
 
 const CartDrawer = ({ isOpen, onClose }) => {
-  const { items, removeItem, updateQuantity, total } = useCartStore();
+  const { items, removeItem, updateQuantity } = useCartStore();
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  // Calculer le total directement pour garantir la réactivité
+  const total = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
   const navigate = useNavigate();
 
   if (!isOpen) return null;
