@@ -114,9 +114,15 @@ public class OrderService {
     /**
      * Génère un lien WhatsApp pré-rempli avec le résumé de la commande.
      */
+    /**
+     * Génère un lien WhatsApp pré-rempli avec le résumé de la commande.
+     */
     private String generateWhatsAppLink(Order order) {
         StringBuilder message = new StringBuilder();
-        message.append("*NOUVELLE COMMANDE SUCRE STORE*").append("\n\n");
+        String storeName = appProperties.getStoreName() != null ? appProperties.getStoreName() : "STORE";
+        String currency = appProperties.getCurrency() != null ? appProperties.getCurrency() : "FCFA";
+
+        message.append("*NOUVELLE COMMANDE ").append(storeName).append("*").append("\n\n");
         message.append("Commande: #").append(order.getOrderNumber()).append("\n");
         message.append("Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))).append("\n\n");
 
@@ -134,10 +140,10 @@ public class OrderService {
         for (OrderItem item : order.getItems()) {
             message.append("- ").append(item.getQuantity()).append("x ")
                     .append(item.getProduct().getName())
-                    .append(" (").append(item.getTotalPrice()).append(" FCFA)\n");
+                    .append(" (").append(item.getTotalPrice()).append(" ").append(currency).append(")\n");
         }
 
-        message.append("\n*TOTAL: ").append(order.getTotal()).append(" FCFA*").append("\n\n");
+        message.append("\n*TOTAL: ").append(order.getTotal()).append(" ").append(currency).append("*").append("\n\n");
 
         if (order.getCustomerNotes() != null && !order.getCustomerNotes().isEmpty()) {
             message.append("Notes: ").append(order.getCustomerNotes());
@@ -148,6 +154,65 @@ public class OrderService {
         } catch (java.io.UnsupportedEncodingException e) {
             return "";
         }
+    }
+
+    /**
+     * Génère un lien de notification WhatsApp pour le changement de statut.
+     */
+    @Transactional(readOnly = true)
+    public String generateStatusNotificationLink(Long orderId) {
+        Order order = getOrderById(orderId);
+        String storeName = appProperties.getStoreName() != null ? appProperties.getStoreName() : "SUCRE STORE";
+        String storePhone = appProperties.getStorePhone() != null ? appProperties.getStorePhone() : "";
+
+        StringBuilder message = new StringBuilder();
+        message.append("Bonjour,\n\n");
+        message.append("Votre commande #").append(order.getOrderNumber()).append(" sur ").append(storeName).append(" est actuellement : *").append(getStatusLabel(order.getStatus())).append("*\n\n");
+
+        switch (order.getStatus()) {
+            case PENDING:
+            case SHIPPED: // Using SHIPPED as "En cours" equivalent for now
+                message.append("Votre commande est en cours de préparation et sera bientôt livrée.");
+                break;
+            case DELIVERED:
+                message.append("Votre commande a été livrée avec succès. Merci de votre confiance !");
+                break;
+            case CANCELLED:
+                message.append("Votre commande a été annulée. Pour plus d'informations, contactez-nous.");
+                break;
+            case CONFIRMED:
+            default:
+                message.append("Nous vous tiendrons informé de l'évolution de votre commande.");
+                break;
+        }
+
+        message.append("\n\n").append(storeName).append("\n").append(storePhone);
+
+        // Nettoyage du numéro de téléphone du client (suppression des espaces, etc.)
+        String customerPhone = order.getCustomerPhone().replaceAll("\\s+", "").replaceAll("[^0-9]", "");
+
+        try {
+            return "https://wa.me/" + customerPhone + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return "";
+        }
+    }
+
+    private String getStatusLabel(Order.Status status) {
+        return switch (status) {
+            case PENDING ->
+                "En attente";
+            case CONFIRMED ->
+                "Confirmée";
+            case SHIPPED ->
+                "En cours de livraison";
+            case DELIVERED ->
+                "Livrée";
+            case CANCELLED ->
+                "Annulée";
+            default ->
+                status.name();
+        };
     }
 
     // --- Méthodes Admin ---
