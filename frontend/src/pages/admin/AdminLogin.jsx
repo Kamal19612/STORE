@@ -54,9 +54,22 @@ const AdminLogin = () => {
 
       toast.success(`Bienvenue ${authData.username} !`);
 
-      // Redirection
-      const from = location.state?.from?.pathname || "/admin/dashboard";
-      navigate(from, { replace: true });
+      // Redirection dynamique selon le rôle
+      const userRole = authData.role || authData.user?.role; // S'adapter selon la structure de réponse
+      let targetPath = "/admin/dashboard";
+
+      if (userRole === "DELIVERY_AGENT") {
+        targetPath = "/delivery";
+      }
+
+      // Si l'utilisateur venait d'une page spécifique (protected route), on y retourne
+      // Sauf si c'est la page login elle-même
+      const from =
+        location.state?.from?.pathname !== "/admin/login"
+          ? location.state?.from?.pathname
+          : targetPath;
+
+      navigate(from || targetPath, { replace: true });
     } catch (error) {
       toast.error(error.message || "Erreur de connexion");
     } finally {

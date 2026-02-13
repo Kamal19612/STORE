@@ -24,6 +24,7 @@ const AdminProductForm = () => {
     name: "",
     slug: "",
     categoryId: "",
+    categoryName: "", // Ajout pour l'input libre
     price: "",
     oldPrice: "",
     stock: 0,
@@ -42,9 +43,9 @@ const AdminProductForm = () => {
       try {
         const data = await productService.getCategories();
         setCategories(data);
-        if (data.length > 0 && !isEditMode) {
-          setFormData((prev) => ({ ...prev, categoryId: data[0].id }));
-        }
+        setCategories(data);
+        // Suppression de l'auto-select pour laisser le champ vide ou libre
+        // if (data.length > 0 && !isEditMode) { ... }
       } catch (error) {
         toast.error("Erreur chargement catégories");
       }
@@ -73,7 +74,9 @@ const AdminProductForm = () => {
           setFormData({
             name: product.name,
             slug: product.slug,
-            categoryId: category ? category.id : "", // Fallback
+            slug: product.slug,
+            categoryId: category ? category.id : "",
+            categoryName: product.categoryName || "", // Pre-fill name
             price: product.price,
             oldPrice: product.oldPrice || "",
             stock: product.available ? 99 : 0, // ATTENTION: ProductResponse n'a pas 'stockQuantity' exact pour le public ?? VERIFIER ProductResponse.java
@@ -122,7 +125,10 @@ const AdminProductForm = () => {
             ...prev,
             name: product.name,
             slug: product.slug,
-            categoryId: category ? category.id : categories[0].id,
+            name: product.name,
+            slug: product.slug,
+            categoryId: category ? category.id : "",
+            categoryName: product.categoryName || "",
             price: product.price,
             oldPrice: product.oldPrice,
             stock: 10, // Valeur par défaut car non dispo dans DTO public
@@ -139,10 +145,25 @@ const AdminProductForm = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    // Conversion automatique des liens Google Drive
+    if (name === "imageUrl") {
+      let cleanUrl = value;
+      // Regex pour capturer l'ID d'un lien Google Drive standard
+      const driveRegex = /https:\/\/drive\.google\.com\/file\/d\/([^/]+)/;
+      const match = value.match(driveRegex);
+
+      if (match && match[1]) {
+        // Convertir en lien visualisable direct
+        cleanUrl = `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      }
+
+      setFormData((prev) => ({ ...prev, [name]: cleanUrl }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      }));
+    }
 
     // Génération automatique du slug depuis le nom
     if (name === "name" && !isEditMode) {
@@ -177,7 +198,11 @@ const AdminProductForm = () => {
         stock: parseInt(formData.stock),
         price: parseFloat(formData.price),
         oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : null,
-        categoryId: parseInt(formData.categoryId),
+        price: parseFloat(formData.price),
+        oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : null,
+        // Envoi du nom au lieu de l'ID (le backend gérera)
+        categoryName: formData.categoryName,
+        categoryId: null, // On laisse le backend résoudre via le nom
         imageFile, // Sera extrait par le service
       };
 
@@ -251,22 +276,23 @@ const AdminProductForm = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                Catégorie
+                Catégorie (Sélectionner ou Créer)
               </label>
-              <select
-                name="categoryId"
+              <input
+                list="categories-list"
+                name="categoryName"
                 required
-                value={formData.categoryId}
+                value={formData.categoryName}
                 onChange={handleChange}
+                placeholder="Ex: APHRODISIAQUE, SEXTOY..."
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
-              >
-                <option value="">Sélectionner...</option>
+                autoComplete="off"
+              />
+              <datalist id="categories-list">
                 {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
+                  <option key={cat.id} value={cat.name} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">

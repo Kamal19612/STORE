@@ -38,7 +38,7 @@ const Slider = () => {
   if (slides.length === 0) return null;
 
   return (
-    <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden rounded-2xl shadow-lg mb-10 group">
+    <div className="relative w-full h-[400px] overflow-hidden slider-container bg-gray-100 mb-8">
       {/* Slides */}
       {slides.map((slide, index) => (
         <div
@@ -51,41 +51,36 @@ const Slider = () => {
             src={slide.imageUrl}
             alt={slide.title || "Slide"}
             className="w-full h-full object-cover"
+            style={{ maxHeight: "400px" }}
           />
-          {slide.title && (
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-              <h2 className="text-white text-3xl md:text-5xl font-bold tracking-wide text-center px-4 drop-shadow-lg font-brand-serif">
-                {slide.title}
-              </h2>
-            </div>
-          )}
         </div>
       ))}
 
+      {/* Controls (Only if > 1 slide) */}
       {/* Controls (Only if > 1 slide) */}
       {slides.length > 1 && (
         <>
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/50 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+            className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition z-10"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/30 hover:bg-white/50 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition z-10"
           >
             <ChevronRight className="h-6 w-6" />
           </button>
 
           {/* Indicators */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
             {slides.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrent(index)}
-                className={`w-2.5 h-2.5 rounded-full transition-all ${
-                  index === current ? "bg-white w-6" : "bg-white/50"
+                className={`w-3 h-3 rounded-full transition-all ${
+                  index === current ? "bg-white" : "bg-white/50"
                 }`}
               />
             ))}

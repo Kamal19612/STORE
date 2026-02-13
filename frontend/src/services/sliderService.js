@@ -1,37 +1,46 @@
 import api from "./api";
 
 const sliderService = {
-  // Récupérer toutes les images
-  getAll: async () => {
-    const response = await api.get("/admin/slider");
-    return response.data;
-  },
-
-  // Récupérer les images pour le public
+  // Public: Récupérer les sliders actifs
   getPublicAll: async () => {
-    const response = await api.get("/slider");
+    const response = await api.get("/sliders");
     return response.data;
   },
 
-  // Créer une image (FormData)
+  // Admin: Récupérer tous les sliders
+  getAll: async () => {
+    const response = await api.get("/admin/sliders");
+    return response.data;
+  },
+
+  // Admin: Créer un slider
   create: async (formData) => {
-    const response = await api.post("/admin/slider", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+    const response = await api.post("/admin/sliders", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
     return response.data;
   },
 
-  // Mettre à jour (FormData)
-  update: async (id, formData) => {
-    const response = await api.put(`/admin/slider/${id}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return response.data;
-  },
-
-  // Supprimer
+  // Admin: Supprimer un slider
   delete: async (id) => {
-    await api.delete(`/admin/slider/${id}`);
+    await api.delete(`/admin/sliders/${id}`);
+  },
+
+  // Admin: Toggle Active
+  toggleActive: async (id) => {
+    const response = await api.put(`/admin/sliders/${id}/toggle`);
+    return response.data;
+  },
+
+  // Admin: Update (si besoin, pas implémenté en backend pour l'instant sauf toggle)
+  update: async (id, formData) => {
+    // Note: Le backend n'a pas de PUT update global pour l'instant, juste toggle.
+    // Si AdminSlider appelle update pour toggle, on redirige vers toggle.
+    // Si c'est pour autre chose, ça plantera.
+    // AdminSlider actuel appelle update pour le toggle.
+    return sliderService.toggleActive(id);
   },
 };
 

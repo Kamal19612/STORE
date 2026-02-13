@@ -74,7 +74,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/products/**").permitAll()
                         .requestMatchers("/api/categories/**").permitAll()
-                        .requestMatchers("/api/slider/**").permitAll()
+                        .requestMatchers("/api/sliders/**").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll() // Accès aux images sans authentification
                         .requestMatchers("/error").permitAll()

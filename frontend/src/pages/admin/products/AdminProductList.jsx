@@ -5,14 +5,13 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye,
-  EyeOff,
-  MoreVertical,
   CheckCircle,
   XCircle,
+  Upload,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import adminProductService from "../../../services/adminProductService";
+import ImportProductModal from "../../../components/admin/ImportProductModal";
 
 const AdminProductList = () => {
   const [products, setProducts] = useState([]);
@@ -20,6 +19,7 @@ const AdminProductList = () => {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState("");
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -69,13 +69,22 @@ const AdminProductList = () => {
           </h1>
           <p className="text-gray-500">Gérez votre catalogue, stocks et prix</p>
         </div>
-        <Link
-          to="/admin/products/new"
-          className="btn-primary flex items-center justify-center gap-2"
-        >
-          <Plus className="h-5 w-5" />
-          Nouveau Produit
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="btn-secondary flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200"
+          >
+            <Upload className="h-5 w-5" />
+            Importer CSV
+          </button>
+          <Link
+            to="/admin/products/new"
+            className="btn-primary flex items-center justify-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Nouveau Produit
+          </Link>
+        </div>
       </div>
 
       {/* Barre de recherche */}
@@ -241,6 +250,17 @@ const AdminProductList = () => {
           </div>
         </div>
       </div>
+
+      <ImportProductModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          fetchProducts();
+          // Keep modal open to show result, or close?
+          // Usually keep open to show summary.
+          // My ImportProductModal handles summary display internally.
+        }}
+      />
     </div>
   );
 };

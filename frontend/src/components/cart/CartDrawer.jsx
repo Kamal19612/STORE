@@ -131,9 +131,9 @@ const CartDrawer = ({ isOpen, onClose }) => {
                   onClose();
                   navigate("/checkout");
                 }}
-                className="btn-primary w-full py-4 text-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                className="btn-primary w-full py-3 text-lg font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 uppercase tracking-wide"
               >
-                Commander maintenant
+                Passer la commande
               </button>
             </div>
           )}
