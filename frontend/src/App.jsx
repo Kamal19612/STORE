@@ -14,6 +14,7 @@ import AdminOrderList from "./pages/admin/orders/AdminOrderList";
 import AdminOrderDetail from "./pages/admin/orders/AdminOrderDetail";
 import AdminSlider from "./pages/admin/slider/AdminSlider";
 import AdminUserList from "./pages/admin/users/AdminUserList";
+import OrdersDiagnostic from "./pages/admin/OrdersDiagnostic";
 
 import AdminUserForm from "./pages/admin/users/AdminUserForm";
 import DeliveryLayout from "./layouts/DeliveryLayout";
@@ -64,6 +65,7 @@ function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
 
           {/* Placeholders pour les futures pages admin */}
+          <Route path="diagnostic" element={<OrdersDiagnostic />} />
           <Route path="orders" element={<AdminOrderList />} />
           <Route path="orders/:id" element={<AdminOrderDetail />} />
           <Route path="products" element={<AdminProductList />} />

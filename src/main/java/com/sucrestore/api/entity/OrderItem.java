@@ -2,6 +2,8 @@ package com.sucrestore.api.entity;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -35,6 +37,7 @@ public class OrderItem {
     /**
      * Commande à laquelle cet article appartient
      */
+    @JsonIgnore // Évite la référence circulaire Order <-> OrderItem
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;

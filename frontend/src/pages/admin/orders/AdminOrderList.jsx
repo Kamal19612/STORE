@@ -16,11 +16,27 @@ const AdminOrderList = () => {
     setLoading(true);
     try {
       const data = await adminOrderService.getAllOrders(page);
-      setOrders(data.content || []);
-      setTotalPages(data.totalPages || 0);
+
+      // Extraction sécurisée des données
+      let ordersArray = [];
+      let pages = 1;
+
+      if (Array.isArray(data)) {
+        // Réponse directe en tableau
+        ordersArray = data;
+      } else if (data && typeof data === "object") {
+        // Réponse paginée Spring Boot
+        ordersArray = data.content || [];
+        pages = data.totalPages || 1;
+      }
+
+      setOrders(ordersArray);
+      setTotalPages(pages);
     } catch (error) {
       console.error("Erreur chargement commandes:", error);
-      toast.error("Impossible de charger les commandes");
+      toast.error(
+        `Impossible de charger les commandes: ${error.response?.data?.message || error.message}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -28,6 +44,7 @@ const AdminOrderList = () => {
 
   useEffect(() => {
     fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const handleDelete = async (id) => {
