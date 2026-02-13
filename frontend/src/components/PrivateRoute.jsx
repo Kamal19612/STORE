@@ -24,7 +24,10 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   // Vérifier les rôles si spécifiés
   if (allowedRoles.length > 0 && user?.role) {
     if (!allowedRoles.includes(user.role)) {
-      // Rediriger vers dashboard si rôle non autorisé
+      // Rediriger vers dashboard approprié si rôle non autorisé
+      if (user.role === "DELIVERY_AGENT") {
+        return <Navigate to="/delivery/dashboard" replace />;
+      }
       return <Navigate to="/admin/dashboard" replace />;
     }
   }

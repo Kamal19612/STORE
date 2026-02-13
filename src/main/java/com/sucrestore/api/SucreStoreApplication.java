@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import com.sucrestore.api.config.AppProperties;
+import com.sucrestore.api.config.GoogleConfig;
 
 /**
  * Point d'entrée de l'application Spring Boot "Sucre Store".
@@ -16,7 +17,7 @@ import com.sucrestore.api.config.AppProperties;
  * charge de notre classe de configuration typée.
  */
 @SpringBootApplication
-@EnableConfigurationProperties(AppProperties.class)
+@EnableConfigurationProperties({AppProperties.class, GoogleConfig.class})
 @org.springframework.scheduling.annotation.EnableScheduling
 public class SucreStoreApplication {
 

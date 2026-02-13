@@ -25,11 +25,11 @@ public class JwtResponse {
     private String username;
 
     /**
-     * Rôles de l'utilisateur (sous forme de chaîne)
+     * Rôles de l'utilisateur (liste de chaînes)
      */
-    private String roles;
+    private java.util.List<String> roles;
 
-    public JwtResponse(String accessToken, String username, String roles) {
+    public JwtResponse(String accessToken, String username, java.util.List<String> roles) {
         this.token = accessToken;
         this.username = username;
         this.roles = roles;

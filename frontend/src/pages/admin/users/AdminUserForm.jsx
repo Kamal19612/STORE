@@ -50,16 +50,23 @@ const AdminUserForm = () => {
       }
       navigate("/admin/users");
     } catch (error) {
-      console.error(error);
+      console.error("User Form Error:", error);
       const msg =
         error.response?.data?.message ||
         error.message ||
         "Erreur enregistrement";
-      toast.error(
-        msg.includes("403")
-          ? "Permission refusée (Super Admin requis)"
-          : "Erreur: " + msg,
-      );
+
+      if (msg.includes("disconnected port")) {
+        toast.error(
+          "Erreur Extension Navigateur (Réessayez en navigation privée)",
+        );
+      } else {
+        toast.error(
+          msg.includes("403")
+            ? "Permission refusée (Super Admin requis)"
+            : "Erreur: " + msg,
+        );
+      }
     } finally {
       setLoading(false);
     }
