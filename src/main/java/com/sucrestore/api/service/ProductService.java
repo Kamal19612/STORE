@@ -68,6 +68,7 @@ public class ProductService {
                 .name(product.getName())
                 .slug(product.getSlug())
                 .shortDescription(product.getShortDescription())
+                .description(product.getDescription())
                 .price(product.getPrice())
                 .oldPrice(product.getOldPrice())
                 .mainImage(product.getMainImage())

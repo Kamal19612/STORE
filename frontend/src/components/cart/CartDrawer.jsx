@@ -3,8 +3,8 @@ import useCartStore from "../../store/cartStore";
 import { useNavigate } from "react-router-dom";
 
 const CartDrawer = ({ isOpen, onClose }) => {
-  const { items, removeItem, updateQuantity, total, itemCount } =
-    useCartStore();
+  const { items, removeItem, updateQuantity, total } = useCartStore();
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -89,7 +89,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="font-bold text-sm min-w-[20px] text-center">
+                        <span className="font-bold text-sm min-w-[24px] text-center text-secondary">
                           {item.quantity}
                         </span>
                         <button

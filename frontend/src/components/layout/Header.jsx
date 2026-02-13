@@ -5,7 +5,8 @@ import useCartStore from "../../store/cartStore";
 import CartDrawer from "../cart/CartDrawer";
 
 const Header = () => {
-  const itemCount = useCartStore((state) => state.itemCount);
+  const items = useCartStore((state) => state.items);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   return (
@@ -38,7 +39,7 @@ const Header = () => {
             <button
               id="cart-toggle"
               onClick={() => setIsCartOpen(true)}
-              className="relative px-4 py-2 rounded-lg transition-transform hover:scale-105 active:scale-95 bg-primary text-secondary"
+              className={`relative px-4 py-2 rounded-lg transition-transform hover:scale-105 active:scale-95 bg-primary text-secondary ${itemCount > 0 ? "animate-pulse-fast border-2 border-white shadow-lg" : ""}`}
             >
               <ShoppingCart className="h-6 w-6" />
               <span

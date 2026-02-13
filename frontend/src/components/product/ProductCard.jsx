@@ -19,7 +19,7 @@ const ProductCard = ({ product }) => {
           <div className="flex flex-col gap-1">
             <span className="font-bold">Excellent choix ! 🍬</span>
             <span className="text-sm">
-              N'oubliez pas de vérifier votre panier.
+              Vérifiez votre panier en haut à droite (bouton clignotant) ↗️
             </span>
           </div>,
           {
@@ -79,7 +79,7 @@ const ProductCard = ({ product }) => {
           {product.name}
         </h2>
 
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-gray-600 mb-3 line-clamp-4">
           {/* Description mocked for now if not available in prop */}
           {product.description || "Découvrez ce délice..."}
         </p>
