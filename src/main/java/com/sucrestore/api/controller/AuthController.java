@@ -59,8 +59,12 @@ public class AuthController {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
         // 5. Retourner la réponse avec le token
+        java.util.List<String> roles = userDetails.getAuthorities().stream()
+                .map(item -> item.getAuthority())
+                .collect(java.util.stream.Collectors.toList());
+
         return ResponseEntity.ok(new JwtResponse(jwt,
                 userDetails.getUsername(),
-                userDetails.getAuthorities().toString()));
+                roles));
     }
 }

@@ -19,10 +19,16 @@ const useAuthStore = create(
        * @param {Object} authData - { token, username, roles }
        */
       login: (authData) => {
-        // Parser le rôle depuis "[ROLE_ADMIN]" vers "ADMIN"
-        const roleString = authData.roles || "";
-        const roleMatch = roleString.match(/ROLE_(\w+)/);
-        const role = roleMatch ? roleMatch[1] : null;
+        // Nouvelle logique avec List<String> depuis le back
+        // authData.roles est maintenant un tableau : ["ROLE_ADMIN", "ROLE_LIVREUR"]
+        const roles = Array.isArray(authData.roles) ? authData.roles : [];
+
+        // On prend le premier rôle trouvé et on retire le préfixe "ROLE_" pour la compatibilité frontend
+        // Ex: "ROLE_ADMIN" -> "ADMIN"
+        let role = null;
+        if (roles.length > 0) {
+          role = roles[0].replace("ROLE_", "");
+        }
 
         const user = {
           username: authData.username,

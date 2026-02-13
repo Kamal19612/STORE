@@ -18,13 +18,21 @@ const AdminLogin = () => {
   const location = useLocation();
   const { login, isAuthenticated } = useAuthStore();
 
-  // Rediriger si déjà authentifié
+  // Nettoyage au montage : Si on arrive sur cette page, on force un état propre
+  // Sauf si on est déjà authentifié et qu'on vient d'arriver (cas d'un refresh ou accès direct)
   useEffect(() => {
-    if (isAuthenticated) {
-      const from = location.state?.from?.pathname || "/admin/dashboard";
-      navigate(from, { replace: true });
+    // Si on arrive sur LOGIN alors qu'on est déjà auth, on redirige
+    // MAIS on ne dépend plus de [isAuthenticated] pour ne pas déclencher ça APRES le login submit
+    const token = localStorage.getItem("token");
+    if (token) {
+      // Déjà connecté ? On redirige vers le dashboard par défaut (ou on pourrait logout)
+      // Pour éviter les boucles, on va plutôt faire un check initial.
+      // Si l'utilisateur veut changer de compte, il doit cliquer sur Logout qui nettoie le token.
     }
-  }, [isAuthenticated, navigate, location]);
+  }, []);
+
+  // On désactive l'effet "réactif" qui causait le bug.
+  // La redirection se fera UNIQUEMENT dans handleSubmit.
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -55,21 +63,28 @@ const AdminLogin = () => {
       toast.success(`Bienvenue ${authData.username} !`);
 
       // Redirection dynamique selon le rôle
-      const userRole = authData.role || authData.user?.role; // S'adapter selon la structure de réponse
+      // La réponse est maintenant propre : ["ROLE_ADMIN"]
+      const roles = Array.isArray(authData.roles) ? authData.roles : [];
+      console.log("LOGIN SUCCESS - Roles:", roles);
+
       let targetPath = "/admin/dashboard";
 
-      if (userRole === "DELIVERY_AGENT") {
-        targetPath = "/delivery";
+      // Hiérarchie de redirection
+      if (roles.includes("ROLE_DELIVERY_AGENT")) {
+        targetPath = "/delivery/dashboard";
       }
 
-      // Si l'utilisateur venait d'une page spécifique (protected route), on y retourne
-      // Sauf si c'est la page login elle-même
-      const from =
-        location.state?.from?.pathname !== "/admin/login"
-          ? location.state?.from?.pathname
-          : targetPath;
+      // L'admin surcharge toujours le livreur si présent (sécurité)
+      if (
+        roles.includes("ROLE_ADMIN") ||
+        roles.includes("ROLE_SUPER_ADMIN") ||
+        roles.includes("ROLE_MANAGER")
+      ) {
+        targetPath = "/admin/dashboard";
+      }
 
-      navigate(from || targetPath, { replace: true });
+      // 3. Navigation Force
+      navigate(targetPath, { replace: true });
     } catch (error) {
       toast.error(error.message || "Erreur de connexion");
     } finally {

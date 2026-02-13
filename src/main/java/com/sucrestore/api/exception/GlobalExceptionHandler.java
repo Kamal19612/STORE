@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         logger.error("RuntimeException: ", ex);
         Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
+        response.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleMaxSizeException(MaxUploadSizeExceededException exc) {
         logger.error("MaxUploadSizeExceededException: ", exc);
         Map<String, String> response = new HashMap<>();
-        response.put("error", "Fichier trop volumineux !");
+        response.put("message", "Fichier trop volumineux !");
         return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(response);
     }
 
@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleMissingParams(MissingServletRequestParameterException ex) {
         logger.error("MissingServletRequestParameterException: ", ex);
         Map<String, String> response = new HashMap<>();
-        response.put("error", "Paramètre manquant : " + ex.getParameterName());
+        response.put("message", "Paramètre manquant : " + ex.getParameterName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
         logger.error("Exception inattendue: ", ex);
         Map<String, String> response = new HashMap<>();
-        response.put("error", "Une erreur inattendue est survenue: " + ex.getMessage());
+        response.put("message", "Une erreur inattendue est survenue: " + ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
