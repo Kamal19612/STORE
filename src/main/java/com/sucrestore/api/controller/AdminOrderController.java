@@ -57,6 +57,16 @@ public class AdminOrderController {
     }
 
     /**
+     * GET /api/admin/orders/{id}/whatsapp-notification : Génère le lien
+     * WhatsApp pour la notification de statut.
+     */
+    @GetMapping("/{id}/whatsapp-notification")
+    public ResponseEntity<Map<String, String>> getWhatsAppNotificationLink(@PathVariable Long id) {
+        String link = orderService.generateStatusNotificationLink(id);
+        return ResponseEntity.ok(Map.of("link", link));
+    }
+
+    /**
      * DELETE /api/admin/orders/{id} : Supprimer une commande. Réservé au
      * SUPER_ADMIN.
      */

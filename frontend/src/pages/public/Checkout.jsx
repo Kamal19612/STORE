@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Send,
   CheckCircle,
+  ShoppingBag,
 } from "lucide-react";
 import useCartStore from "../../store/cartStore";
 import api from "../../services/api";
@@ -86,7 +87,7 @@ const Checkout = () => {
     try {
       const response = await api.post("/orders", payload);
       setOrderSuccess(response.data);
-      clearCart();
+      // clearCart(); // Déplacé vers la fermeture de la modale de succès
       toast.success("Commande enregistrée !");
     } catch (error) {
       console.error("Erreur commande:", error);
@@ -136,7 +137,10 @@ const Checkout = () => {
           </div>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={() => {
+              clearCart();
+              navigate("/");
+            }}
             className="mt-8 text-secondary font-bold hover:text-primary transition-colors underline decoration-2 underline-offset-4"
           >
             Retour à l'accueil

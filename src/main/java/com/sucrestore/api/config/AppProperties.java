@@ -25,6 +25,9 @@ public class AppProperties {
     }
 
     private String whatsappNumber;
+    private String storeName;
+    private String storePhone;
+    private String currency = "FCFA"; // Valeur par défaut
 
     private final Storage storage = new Storage();
 

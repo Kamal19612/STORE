@@ -186,7 +186,10 @@ public class GoogleSheetsService {
                 stock = cleanStock.isEmpty() ? 0 : Integer.parseInt(cleanStock);
             } else {
                 // Texte
-                if (availabilityStr.toLowerCase().contains("stock") || availabilityStr.toLowerCase().contains("disponible") || availabilityStr.toLowerCase().contains("oui")) {
+                String lowerAvailability = availabilityStr.toLowerCase();
+                if (lowerAvailability.contains("indisponible") || lowerAvailability.contains("rupture") || lowerAvailability.contains("non")) {
+                    stock = 0;
+                } else if (lowerAvailability.contains("stock") || lowerAvailability.contains("disponible") || lowerAvailability.contains("oui")) {
                     stock = 100; // Valeur arbitraire pour "En stock"
                 }
             }
