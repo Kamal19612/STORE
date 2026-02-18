@@ -8,15 +8,16 @@ import Home from "./pages/public/Home";
 import Checkout from "./pages/public/Checkout";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import Login from "./pages/Login";
 import AdminProductList from "./pages/admin/products/AdminProductList";
 import AdminProductForm from "./pages/admin/products/AdminProductForm";
 import AdminOrderList from "./pages/admin/orders/AdminOrderList";
 import AdminOrderDetail from "./pages/admin/orders/AdminOrderDetail";
 import AdminSlider from "./pages/admin/slider/AdminSlider";
 import AdminUserList from "./pages/admin/users/AdminUserList";
-import OrdersDiagnostic from "./pages/admin/OrdersDiagnostic";
-
 import AdminUserForm from "./pages/admin/users/AdminUserForm";
+import AdminSettings from "./pages/admin/AdminSettings";
+import OrdersDiagnostic from "./pages/admin/OrdersDiagnostic";
 import DeliveryLayout from "./layouts/DeliveryLayout";
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 import PrivateRoute from "./components/PrivateRoute";
@@ -48,6 +49,9 @@ function App() {
           />
           <Route path="checkout" element={<Checkout />} />
         </Route>
+
+        {/* Route de connexion principale */}
+        <Route path="/login" element={<Login />} />
 
         {/* Route de connexion admin (NON protégée) */}
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -96,6 +100,7 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
         {/* Routes Livreur (PROTÉGÉES) */}

@@ -50,8 +50,15 @@ public class User {
     /**
      * Mot de passe crypté (BCrypt)
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(nullable = false)
     private String password;
+
+    /**
+     * Numéro de téléphone (Optionnel, utile pour les livreurs)
+     */
+    @Column(length = 20)
+    private String phone;
 
     /**
      * Rôle de l'utilisateur (définit les permissions)
@@ -65,6 +72,14 @@ public class User {
      */
     @Builder.Default
     private boolean active = true;
+
+    /**
+     * Version du token pour gérer l'invalidation des sessions. Incrémenté à
+     * chaque nouvelle connexion.
+     */
+    @Builder.Default
+    @Column(nullable = true)
+    private Long tokenVersion = 0L;
 
     /**
      * Date de la dernière connexion réussie

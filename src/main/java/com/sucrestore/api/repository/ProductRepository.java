@@ -21,9 +21,19 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findBySlug(String slug);
 
     /**
+     * Trouve un produit via son ID externe (provenant de Google Sheets).
+     */
+    Optional<Product> findByExternalId(String externalId);
+
+    /**
      * Trouve tous les produits actifs, avec pagination.
      */
     Page<Product> findByActiveTrue(Pageable pageable);
+
+    /**
+     * Trouve tous les produits actifs (sans pagination) - pour synchronisation.
+     */
+    java.util.List<Product> findByActiveTrue();
 
     /**
      * Trouve les produits d'une catégorie spécifique.

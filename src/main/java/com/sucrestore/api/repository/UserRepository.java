@@ -30,4 +30,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Vérifie si un email existe déjà.
      */
     Boolean existsByEmail(String email);
+
+    /**
+     * Trouve un utilisateur par son rôle.
+     */
+    Optional<User> findByRole(User.Role role);
 }

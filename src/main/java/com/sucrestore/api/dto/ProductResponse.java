@@ -17,6 +17,7 @@ public class ProductResponse {
     private String slug;
     private String shortDescription;
     private String description;
+    private String volumeWeight; // Volume/Poids (ex: "50ml", "100g")
     private BigDecimal price;
     private BigDecimal oldPrice;
     private String mainImage;
@@ -24,5 +25,6 @@ public class ProductResponse {
     private String categorySlug;
     private Long categoryId; // Ajouté pour l'édition Admin
     private Integer stock; // Ajouté pour l'édition Admin
+    private String externalId; // ID externe de Google Sheets
     private boolean available; // basé sur stock > 0
 }

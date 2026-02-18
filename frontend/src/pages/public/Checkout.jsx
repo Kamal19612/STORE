@@ -157,12 +157,12 @@ const Checkout = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <h1 className="text-3xl font-black text-secondary mb-8 uppercase tracking-tight">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <h1 className="text-3xl font-black text-secondary mb-8 uppercase tracking-tight text-center">
         Finaliser ma commande
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="w-full">
         {/* Formulaire */}
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -317,6 +317,7 @@ const Checkout = () => {
         </div>
 
         {/* Récapitulatif */}
+        {/* Section Récapitulatif de la Commande (Masquée)
         <div className="space-y-6">
           <div className="bg-secondary text-white p-8 rounded-3xl shadow-xl">
             <h2 className="text-xl font-bold mb-6 uppercase tracking-tight flex items-center gap-2">
@@ -385,6 +386,7 @@ const Checkout = () => {
             </div>
           </div>
         </div>
+        */}
       </div>
     </div>
   );

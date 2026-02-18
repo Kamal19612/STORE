@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import useAuthStore from "../store/authStore";
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api",
   headers: {
@@ -9,7 +11,7 @@ const api = axios.create({
 
 // Intercepteur pour ajouter le token JWT si présent
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = useAuthStore.getState().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -25,14 +27,18 @@ api.interceptors.response.use(
       const currentPath = window.location.pathname;
 
       // Ne pas rediriger si déjà sur la page de login
-      if (!currentPath.includes("/admin/login")) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("auth-storage");
-        window.location.href = "/admin/login";
+      if (!currentPath.includes("/login")) {
+        useAuthStore.getState().logout();
+        window.location.href = "/login";
       }
     }
     return Promise.reject(error);
   },
 );
+
+export const getPublicSettings = () => api.get("/public/settings");
+export const getAdminSettings = () => api.get("/admin/settings");
+export const updateSettings = (settings) =>
+  api.put("/admin/settings", settings);
 
 export default api;

@@ -80,6 +80,17 @@ const AdminOrderList = () => {
     }
   };
 
+  const getStatusLabel = (status) => {
+    const labels = {
+      PENDING: "En attente",
+      CONFIRMED: "Confirmée",
+      SHIPPED: "En livraison",
+      DELIVERED: "Livrée",
+      CANCELLED: "Annulée",
+    };
+    return labels[status] || status;
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleString("fr-FR");
@@ -109,6 +120,9 @@ const AdminOrderList = () => {
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Client
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Code
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Total
@@ -160,6 +174,15 @@ const AdminOrderList = () => {
                         {order.customerPhone}
                       </div>
                     </td>
+                    <td className="px-6 py-4">
+                      {order.confirmationCode ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-mono font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          {order.confirmationCode}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 font-bold text-primary">
                       {order.total.toLocaleString()} FCFA
                     </td>
@@ -167,7 +190,7 @@ const AdminOrderList = () => {
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}
                       >
-                        {order.status}
+                        {getStatusLabel(order.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">

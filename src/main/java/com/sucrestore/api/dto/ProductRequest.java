@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -19,10 +21,14 @@ public class ProductRequest {
     @NotBlank(message = "Le slug est obligatoire")
     private String slug;
 
+    @Size(max = 500, message = "La description courte ne doit pas dépasser 500 caractères")
     private String shortDescription;
     private String description;
 
+    private String volumeWeight; // Volume/Poids (ex: "50ml", "100g")
+
     @NotNull(message = "Le prix est obligatoire")
+    @PositiveOrZero(message = "Le prix doit être positif ou nul")
     @Min(0)
     private BigDecimal price;
 
@@ -41,6 +47,9 @@ public class ProductRequest {
 
     // Nouveau champ pour la création dynamique ou recherche par nom
     private String categoryName;
+
+    // ID externe (provenant de Google Sheets) pour identification stable
+    private String externalId;
 
     private boolean active = true;
 }

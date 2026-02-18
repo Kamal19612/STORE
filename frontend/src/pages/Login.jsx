@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
-import useAuthStore from "../../store/authStore";
-import authService from "../../services/authService";
+import useAuthStore from "../store/authStore";
+import authService from "../services/authService";
 import { LogOut, LayoutDashboard, User, ShieldCheck } from "lucide-react";
 
 /**
- * Page de connexion pour les administrateurs
+ * Page de connexion centralisée (Admin, Livreur, Manager)
  */
-const AdminLogin = () => {
+const Login = () => {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -145,7 +145,7 @@ const AdminLogin = () => {
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
               SUCRE STORE
             </h1>
-            <p className="text-gray-600">Espace Administrateur</p>
+            <p className="text-gray-600">Espace Connexion</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -233,9 +233,7 @@ const AdminLogin = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Accès réservé aux administrateurs uniquement
-            </p>
+            <p className="text-sm text-gray-500">Accès réservé au personnel</p>
           </div>
         </div>
 
@@ -247,4 +245,4 @@ const AdminLogin = () => {
   );
 };
 
-export default AdminLogin;
+export default Login;

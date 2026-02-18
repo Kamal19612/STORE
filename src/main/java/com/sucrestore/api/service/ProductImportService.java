@@ -121,7 +121,8 @@ public class ProductImportService {
             request.setSlug(slug);
 
             // Appel Service (Transactional)
-            productService.importProduct(request, imageUrl);
+            // Note: CSV n'a pas d'externalId, on passe null
+            productService.importProduct(request, imageUrl, null);
             summary.incrementSuccess();
 
         } catch (RuntimeException e) {

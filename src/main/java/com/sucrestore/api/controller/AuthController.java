@@ -32,6 +32,9 @@ public class AuthController {
     AuthenticationManager authenticationManager;
 
     @Autowired
+    com.sucrestore.api.security.UserDetailsServiceImpl userDetailsService;
+
+    @Autowired
     JwtUtils jwtUtils;
 
     /**
@@ -52,11 +55,16 @@ public class AuthController {
         // 2. Mettre l'authentification dans le contexte de sécurité (SecurityContext)
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 3. Générer le token JWT
-        String jwt = jwtUtils.generateJwtToken(authentication);
-
-        // 4. Récupérer les détails de l'utilisateur connecté
+        // 3. Authentifier l'utilisateur
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+
+        // 4. Invalider les sessions précédentes (Incrémente la version du token en BDD)
+        // Cela garantit qu'un seul token est valide à la fois pour un utilisateur
+        // 4. Invalider les sessions précédentes (Incrémente la version du token en BDD)
+        Long newTokenVersion = userDetailsService.invalidateUserSession(userDetails.getUsername());
+
+        // 5. Générer le nouveau token avec la version
+        String jwt = jwtUtils.generateJwtToken(authentication, newTokenVersion);
 
         // 5. Retourner la réponse avec le token
         java.util.List<String> roles = userDetails.getAuthorities().stream()

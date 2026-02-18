@@ -34,7 +34,8 @@ public class AdminOrderController {
      * GET /api/admin/orders : Liste de toutes les commandes.
      */
     @GetMapping
-    public ResponseEntity<org.springframework.data.domain.Page<Order>> getAllOrders(org.springframework.data.domain.Pageable pageable) {
+    public ResponseEntity<org.springframework.data.domain.Page<Order>> getAllOrders(
+            @org.springframework.data.web.PageableDefault(sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) org.springframework.data.domain.Pageable pageable) {
         return ResponseEntity.ok(orderService.getAllOrders(pageable));
     }
 
@@ -57,12 +58,23 @@ public class AdminOrderController {
     }
 
     /**
+     * GET /api/admin/orders/{id}/history : Récupère l'historique des
+     * changements de statut
+     */
+    @GetMapping("/{id}/history")
+    public ResponseEntity<java.util.List<com.sucrestore.api.entity.OrderStatusHistory>> getOrderHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.getOrderHistory(id));
+    }
+
+    /**
      * GET /api/admin/orders/{id}/whatsapp-notification : Génère le lien
      * WhatsApp pour la notification de statut.
      */
     @GetMapping("/{id}/whatsapp-notification")
-    public ResponseEntity<Map<String, String>> getWhatsAppNotificationLink(@PathVariable Long id) {
-        String link = orderService.generateStatusNotificationLink(id);
+    public ResponseEntity<Map<String, String>> getWhatsAppNotificationLink(
+            @PathVariable Long id,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String phoneNumber) {
+        String link = orderService.generateWhatsAppNotificationLink(id, phoneNumber);
         return ResponseEntity.ok(Map.of("link", link));
     }
 
