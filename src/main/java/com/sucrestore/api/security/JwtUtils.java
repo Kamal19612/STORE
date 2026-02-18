@@ -45,11 +45,12 @@ public class JwtUtils {
      * l'utilisateur.
      * @return Le token JWT généré sous forme de chaîne String.
      */
-    public String generateJwtToken(Authentication authentication) {
+    public String generateJwtToken(Authentication authentication, Long tokenVersion) {
         UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
 
         return Jwts.builder()
                 .setSubject((userPrincipal.getUsername()))
+                .claim("tokenVersion", tokenVersion)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + appProperties.getJwt().getExpiration()))
                 .signWith(key(), SignatureAlgorithm.HS256)
@@ -75,6 +76,14 @@ public class JwtUtils {
     public String getUserNameFromJwtToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key()).build()
                 .parseClaimsJws(token).getBody().getSubject();
+    }
+
+    /**
+     * Extrait la version du token.
+     */
+    public Long getTokenVersionFromJwtToken(String token) {
+        return Jwts.parserBuilder().setSigningKey(key()).build()
+                .parseClaimsJws(token).getBody().get("tokenVersion", Long.class);
     }
 
     /**

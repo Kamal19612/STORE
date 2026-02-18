@@ -25,6 +25,22 @@ const adminOrderService = {
   deleteOrder: async (id) => {
     await api.delete(`/admin/orders/${id}`);
   },
+
+  // Récupérer l'historique des statuts d'une commande
+  getOrderHistory: async (orderId) => {
+    const response = await api.get(`/admin/orders/${orderId}/history`);
+    return response.data;
+  },
+
+  // Générer le lien WhatsApp pour notification
+  getWhatsAppNotificationLink: async (orderId, phoneNumber) => {
+    let url = `/admin/orders/${orderId}/whatsapp-notification`;
+    if (phoneNumber) {
+      url += `?phoneNumber=${encodeURIComponent(phoneNumber)}`;
+    }
+    const response = await api.get(url);
+    return response.data.link;
+  },
 };
 
 export default adminOrderService;

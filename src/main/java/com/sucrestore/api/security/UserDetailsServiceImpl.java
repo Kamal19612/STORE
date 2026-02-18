@@ -59,6 +59,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         try {
             User.Role role = User.Role.valueOf(roleName);
+
+            // Vérification Unique Super Admin
+            if (role == User.Role.SUPER_ADMIN && user.getRole() != User.Role.SUPER_ADMIN) {
+                if (userRepository.findByRole(User.Role.SUPER_ADMIN).isPresent()) {
+                    throw new RuntimeException("Un seul Super Admin est autorisé !");
+                }
+            }
+
             user.setRole(role);
             return userRepository.save(user);
         } catch (IllegalArgumentException e) {
@@ -75,6 +83,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new RuntimeException("Email déjà utilisé !");
         }
 
+        // Vérification Unique Super Admin
+        if (user.getRole() == User.Role.SUPER_ADMIN) {
+            if (userRepository.findByRole(User.Role.SUPER_ADMIN).isPresent()) {
+                throw new RuntimeException("Un seul Super Admin est autorisé !");
+            }
+        }
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
@@ -86,6 +101,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         user.setUsername(userRequest.getUsername());
         user.setEmail(userRequest.getEmail());
+
+        // Vérification Unique Super Admin
+        if (userRequest.getRole() == User.Role.SUPER_ADMIN && user.getRole() != User.Role.SUPER_ADMIN) {
+            if (userRepository.findByRole(User.Role.SUPER_ADMIN).isPresent()) {
+                throw new RuntimeException("Un seul Super Admin est autorisé !");
+            }
+        }
+
         user.setRole(userRequest.getRole());
         user.setActive(userRequest.isActive());
 
@@ -94,11 +117,35 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             user.setPassword(passwordEncoder.encode(userRequest.getPassword()));
         }
 
+        user.setPhone(userRequest.getPhone());
+
         return userRepository.save(user);
     }
 
     @Transactional
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Long invalidateUserSession(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + username));
+
+        // Incrémente la version du token (ce qui invalide les anciens tokens)
+        Long currentVersion = user.getTokenVersion();
+        if (currentVersion == null) {
+            currentVersion = 0L;
+        }
+        user.setTokenVersion(currentVersion + 1);
+        userRepository.save(user);
+
+        return user.getTokenVersion();
+    }
+
+    public Long getUserTokenVersion(String username) {
+        return userRepository.findByUsername(username)
+                .map(User::getTokenVersion)
+                .orElse(0L);
     }
 }

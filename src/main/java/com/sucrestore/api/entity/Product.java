@@ -60,6 +60,13 @@ public class Product {
     private String description;
 
     /**
+     * Information volume/poids (ex: "50ml", "100g", "5 pièces") Mappé depuis la
+     * colonne E du Google Sheet
+     */
+    @Column(name = "volume_weight", length = 255)
+    private String volumeWeight;
+
+    /**
      * Prix de vente unitaire
      */
     @Column(nullable = false)
@@ -80,6 +87,13 @@ public class Product {
      * URL de l'image principale
      */
     private String mainImage;
+
+    /**
+     * ID externe provenant de Google Sheets (identifiant stable) Permet
+     * d'identifier un produit de manière unique même si son nom change
+     */
+    @Column(unique = true, length = 50)
+    private String externalId;
 
     /**
      * Produit actif (visible) ou archivé

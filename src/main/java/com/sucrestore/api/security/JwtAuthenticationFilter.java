@@ -55,6 +55,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 4. Charger les détails de l'utilisateur depuis la base de données
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
+                // --- Vérification de la Version du Token (Anti-Concurrence) ---
+                Long tokenVersionInJwt = jwtUtils.getTokenVersionFromJwtToken(jwt);
+                Long tokenVersionInDb = userDetailsService.getUserTokenVersion(username);
+
+                // Si les versions ne correspondent pas, le token est obsolète (ancienne session)
+                if (tokenVersionInJwt != null && !tokenVersionInJwt.equals(tokenVersionInDb)) {
+                    log.warn("Tentative de connexion avec un token obsolète (Session invalidée) : {}", username);
+                    // On ne définit pas l'authentification -> 401 sera renvoyé par Spring Security
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+                // ----------------------------------------------------------------
+
                 // 5. Créer l'objet d'authentification Spring Security
                 UsernamePasswordAuthenticationToken authentication
                         = new UsernamePasswordAuthenticationToken(

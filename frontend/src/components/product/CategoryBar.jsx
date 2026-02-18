@@ -1,20 +1,15 @@
 import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// Exemple de catégories (à remplacer par API)
-const CATEGORIES = [
-  "Tous",
-  "Bonbons",
-  "Chocolats",
-  "Biscuits",
-  "Boissons",
-  "Snacks",
-  "Cadeaux",
-  "Offres",
-];
-
-const CategoryBar = ({ selectedCategory, onSelectCategory }) => {
+const CategoryBar = ({
+  selectedCategory,
+  onSelectCategory,
+  categories = [],
+}) => {
   const scrollRef = useRef(null);
+
+  // Construire la liste avec "Tous" + catégories dynamiques
+  const allCategories = ["Tous", ...categories];
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -42,7 +37,7 @@ const CategoryBar = ({ selectedCategory, onSelectCategory }) => {
           ref={scrollRef}
           className="flex-1 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth items-center"
         >
-          {CATEGORIES.map((cat) => (
+          {allCategories.map((cat) => (
             <button
               key={cat}
               onClick={() => onSelectCategory(cat)}

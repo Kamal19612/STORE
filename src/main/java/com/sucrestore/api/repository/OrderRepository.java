@@ -30,4 +30,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Compte le nombre de commandes par statut
      */
     Long countByStatus(Order.Status status);
+
+    /**
+     * Trouve les commandes disponibles pour livraison (CONFIRMED et pas de
+     * livreur).
+     */
+    Page<Order> findByStatusAndDeliveryAgentNull(Order.Status status, Pageable pageable);
+
+    /**
+     * Trouve les commandes assignées à un livreur spécifique avec certains
+     * statuts.
+     */
+    Page<Order> findByDeliveryAgentUsernameAndStatusIn(String username, List<Order.Status> statuses, Pageable pageable);
 }

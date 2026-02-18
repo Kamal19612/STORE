@@ -46,6 +46,12 @@ public class Order {
     private String orderNumber;
 
     /**
+     * Code de confirmation unique (ex: CONF-1234)
+     */
+    @Column(unique = true, length = 10)
+    private String confirmationCode;
+
+    /**
      * Nom du client (pour l'expédition)
      */
     @Column(nullable = false)
@@ -131,4 +137,10 @@ public class Order {
         DELIVERED, // Livrée au client
         CANCELLED  // Annulée
     }
+    /**
+     * Livreur assigné à la commande
+     */
+    @jakarta.persistence.ManyToOne
+    @jakarta.persistence.JoinColumn(name = "delivery_agent_id")
+    private User deliveryAgent;
 }

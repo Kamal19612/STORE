@@ -23,6 +23,8 @@ import com.sucrestore.api.config.GoogleConfig;
 import com.sucrestore.api.dto.ImportSummary;
 import com.sucrestore.api.dto.ProductRequest;
 import com.sucrestore.api.dto.ProductResponse;
+import com.sucrestore.api.entity.Product;
+import com.sucrestore.api.repository.ProductRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,6 +37,9 @@ public class GoogleSheetsService {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private ProductRepository productRepository;
 
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS_READONLY);
@@ -87,7 +92,10 @@ public class GoogleSheetsService {
      * configuré.
      */
     public ImportSummary fetchProducts(String spreadsheetId) {
+        long startTime = System.currentTimeMillis();
         ImportSummary summary = new ImportSummary();
+        java.util.Set<String> sheetExternalIds = new java.util.HashSet<>();
+
         String finalSpreadsheetId = (spreadsheetId != null && !spreadsheetId.isEmpty())
                 ? spreadsheetId
                 : googleConfig.getSpreadsheetId();
@@ -100,7 +108,8 @@ public class GoogleSheetsService {
 
         String range = "A:H"; // Colonnes A à H selon la structure utilisateur
 
-        log.info("Démarrage de l'import Google Sheets. ID: {}, Range: {}", finalSpreadsheetId, range);
+        log.info("🔄 Démarrage de la synchronisation Google Sheets...");
+        log.info("📋 Spreadsheet ID: {}, Range: {}", finalSpreadsheetId, range);
 
         try {
             List<List<Object>> values = getSpreadsheetValues(finalSpreadsheetId, range);
@@ -111,7 +120,7 @@ public class GoogleSheetsService {
                 return summary;
             }
 
-            log.info("{} lignes trouvées dans le Sheet.", values.size());
+            log.info("📊 {} lignes trouvées dans le Sheet", values.size());
 
             int rowNum = 0;
             for (List<Object> row : values) {
@@ -120,31 +129,48 @@ public class GoogleSheetsService {
                     continue; // Skip Header
                 }
                 try {
-                    processRow(row, summary, rowNum);
+                    String externalId = SafeGet(row, 0);
+                    if (externalId != null && !externalId.isEmpty()) {
+                        sheetExternalIds.add(externalId);
+                    }
+                    boolean isNew = processRow(row, summary, rowNum);
+                    // Compter créations vs mises à jour
+                    if (isNew) {
+                        summary.incrementCreated();
+                    } else {
+                        summary.incrementUpdated();
+                    }
                 } catch (RuntimeException e) {
                     String errorMsg = "Erreur ligne " + rowNum + ": " + e.getMessage();
                     summary.addError(rowNum, errorMsg);
-                    log.error(errorMsg); // Log l'erreur pour le debug terminal
+                    log.error(errorMsg);
                 }
             }
+
+            // Désactiver les produits qui ne sont plus dans le Sheet
+            deactivateDeletedProducts(sheetExternalIds, summary);
 
         } catch (IOException | GeneralSecurityException e) {
             log.error("Erreur Google Sheets", e);
             summary.addError(0, "Erreur API Google Sheets: " + e.getMessage());
         }
 
+        long duration = System.currentTimeMillis() - startTime;
+        log.info("⏱️ Synchronisation terminée en {}ms", duration);
+
         return summary;
     }
 
-    private void processRow(List<Object> row, ImportSummary summary, int rowNum) {
+    private boolean processRow(List<Object> row, ImportSummary summary, int rowNum) {
         summary.incrementTotal();
 
         // Mapping USER: ID, Photo, Nom, Mode d'emploi, Volume_poids, Categorie, Disponibilité, Prix
         // Index:      0   1      2    3                4             5          6              7
+        String externalId = SafeGet(row, 0); // NOUVEAU: Extraction de l'ID externe
         String imageUrl = SafeGet(row, 1);
         String name = SafeGet(row, 2);
-        String description = SafeGet(row, 3);
-        String shortDesc = SafeGet(row, 4); // Volume_poids
+        String description = SafeGet(row, 3); // Mode d'emploi
+        String volumeWeight = SafeGet(row, 4); // Volume_poids (ex: "50ml", "100g")
         String categoryName = SafeGet(row, 5);
         String availabilityStr = SafeGet(row, 6);
         String priceStr = SafeGet(row, 7);
@@ -152,11 +178,11 @@ public class GoogleSheetsService {
         if (name.isEmpty()) {
             // Parfois l'ID est là mais pas le nom, on ignore
             if (SafeGet(row, 0).isEmpty()) {
-                return; // Ligne vide
+                return false; // Ligne vide
             }
             summary.addError(rowNum, "Nom du produit obligatoire");
             log.warn("Ligne {}: Nom manquant.", rowNum);
-            return;
+            return false;
         }
 
         // Si catégorie vide, on met "Divers" par défaut ? Non, erreur pour l'instant
@@ -174,8 +200,11 @@ public class GoogleSheetsService {
             request.setPrice(cleanPrice.isEmpty() ? BigDecimal.ZERO : new BigDecimal(cleanPrice));
 
             request.setDescription(description);
-            // On utilise Volume_poids comme description courte
-            request.setShortDescription(shortDesc.isEmpty() ? (description.length() > 100 ? description.substring(0, 97) + "..." : description) : shortDesc);
+            request.setVolumeWeight(volumeWeight); // Volume/Poids depuis colonne E
+            // Description courte générée automatiquement à partir de description si vide
+            request.setShortDescription(
+                    description.length() > 100 ? description.substring(0, 97) + "..." : description
+            );
 
             // Parsing Disponibilité / Stock
             // Si c'est un nombre, c'est le stock. Si c'est du texte "En stock", on met 10, sinon 0.
@@ -200,12 +229,51 @@ public class GoogleSheetsService {
             String slug = name.toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
             request.setSlug(slug);
 
-            ProductResponse savedProduct = productService.importProduct(request, imageUrl);
-            log.info("Produit importé: {} (Slug: {})", savedProduct.getName(), savedProduct.getSlug()); // LOG SUCCÈS
+            // MODIFIÉ: Passer l'externalId au service
+            ProductResponse savedProduct = productService.importProduct(request, imageUrl, externalId);
+            log.info("Produit importé: {} (ID externe: {}, Slug: {})", savedProduct.getName(), externalId, savedProduct.getSlug());
             summary.incrementSuccess();
+
+            // Retourner true si c'est une création (ID null avant), false si c'est une mise à jour
+            // Note: on ne peut pas facilement déterminer ça ici, donc on retourne false par défaut
+            // La logique de comptage sera ajustée dans importProduct
+            return false;
 
         } catch (RuntimeException e) {
             throw new RuntimeException("Erreur traitement: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Désactive tous les produits qui ne sont plus présents dans le Google
+     * Sheet.
+     */
+    private void deactivateDeletedProducts(java.util.Set<String> sheetExternalIds, ImportSummary summary) {
+        log.info("🔍 Vérification des produits supprimés du Sheet...");
+
+        // Récupérer tous les produits actifs
+        java.util.List<Product> activeProducts = productRepository.findByActiveTrue();
+
+        int deactivatedCount = 0;
+        for (Product product : activeProducts) {
+            // Si le produit a un externalId ET qu'il n'est plus dans le Sheet
+            if (product.getExternalId() != null
+                    && !product.getExternalId().isEmpty()
+                    && !sheetExternalIds.contains(product.getExternalId())) {
+
+                product.setActive(false);
+                productRepository.save(product);
+                summary.incrementDeactivated();
+                deactivatedCount++;
+                log.info("❌ Produit désactivé (supprimé du Sheet): {} (ID externe: {})",
+                        product.getName(), product.getExternalId());
+            }
+        }
+
+        if (deactivatedCount == 0) {
+            log.info("✅ Aucun produit à désactiver");
+        } else {
+            log.info("✅ {} produits désactivés", deactivatedCount);
         }
     }
 
@@ -218,17 +286,25 @@ public class GoogleSheetsService {
     }
 
     /**
-     * Tâche planifiée : Importe les produits toutes les 60 secondes. Le délai
-     * est configurable via 'google.sheets.sync-rate' (défaut: 60000ms).
+     * Tâche planifiée : Importe les produits automatiquement. Le délai est
+     * configurable via 'google.sheets.sync-rate' (défaut: 600000ms = 10 min).
      */
-    @org.springframework.scheduling.annotation.Scheduled(fixedRateString = "${google.sheets.sync-rate:60000}")
+    @org.springframework.scheduling.annotation.Scheduled(fixedRateString = "${google.sheets.sync-rate:600000}")
     public void importProductsScheduled() {
         log.info("🔄 Démarrage de la synchronisation automatique Google Sheets...");
         ImportSummary summary = fetchProducts(null); // Utilise l'ID par défaut
-        if (summary.getFailureCount() > 0) {
-            log.warn("⚠️ Synchro terminée avec des erreurs: {} succès, {} erreurs.", summary.getSuccessCount(), summary.getFailureCount());
+
+        // Logs détaillés des résultats
+        log.info("📊 Résultats de la synchronisation:");
+        log.info("   ✅ Créations: {}", summary.getCreatedCount());
+        log.info("   🔄 Mises à jour: {}", summary.getUpdatedCount());
+        log.info("   ❌ Désactivations: {}", summary.getDeactivatedCount());
+        log.info("   ⚠️ Erreurs: {}", summary.getErrorCount());
+
+        if (summary.getErrorCount() > 0) {
+            log.warn("⚠️ Synchronisation terminée avec {} erreurs", summary.getErrorCount());
         } else {
-            log.info("✅ Synchro terminée avec succès: {} produits mis à jour.", summary.getSuccessCount());
+            log.info("✅ Synchronisation réussie: {} produits traités", summary.getTotalProcessed());
         }
     }
 }

@@ -8,7 +8,7 @@ const DeliveryLayout = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/admin/login");
+    window.location.href = "/login";
   };
 
   return (
@@ -17,7 +17,11 @@ const DeliveryLayout = () => {
       <header className="bg-primary text-white p-4 shadow-md sticky top-0 z-50">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Package className="h-6 w-6" />
+            <img
+              src="/logo-sucre.png"
+              alt="Sucre Store"
+              className="h-8 w-auto bg-white rounded-md p-0.5"
+            />
             <span className="font-bold text-lg">Espace Livreur</span>
           </div>
           <div className="text-xs opacity-90">Bonjour, {user?.username}</div>

@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sucrestore.api.entity.Order;
-import com.sucrestore.api.service.DeliveryService;
 
 /**
  * Contrôleur REST pour les livreurs. Accès réservé au rôle DELIVERY_AGENT.
@@ -28,23 +27,50 @@ import com.sucrestore.api.service.DeliveryService;
 public class DeliveryController {
 
     @Autowired
-    private DeliveryService deliveryService;
+    private com.sucrestore.api.service.OrderService orderService;
 
     /**
-     * GET /api/delivery/orders : Liste des commandes à livrer.
+     * GET /api/delivery/orders : Liste des commandes DISPONIBLES (CONFIRMED et
+     * sans livreur).
      */
     @GetMapping
     public ResponseEntity<Page<Order>> getOrdersForDelivery(Pageable pageable) {
-        return ResponseEntity.ok(deliveryService.getOrdersForDelivery(pageable));
+        return ResponseEntity.ok(orderService.getAvailableDeliveryOrders(pageable));
     }
 
     /**
-     * PUT /api/delivery/orders/{id}/status : Mettre à jour le statut (ex:
-     * DELIVERED).
+     * GET /api/delivery/orders/my-orders : Mes commandes prises en charge.
      */
-    @PutMapping("/{id}/status")
-    public ResponseEntity<Order> updateDeliveryStatus(@PathVariable Long id, @RequestBody Map<String, String> payload) {
-        String status = payload.get("status");
-        return ResponseEntity.ok(deliveryService.updateDeliveryStatus(id, status));
+    @GetMapping("/my-orders")
+    public ResponseEntity<Page<Order>> getMyOrders(
+            Pageable pageable,
+            org.springframework.security.core.Authentication authentication) {
+        String username = authentication.getName();
+        return ResponseEntity.ok(orderService.getMyDeliveryOrders(username, pageable));
+    }
+
+    /**
+     * PUT /api/delivery/orders/{id}/claim : Prendre en charge une commande.
+     */
+    @PutMapping("/{id}/claim")
+    public ResponseEntity<Order> claimOrder(
+            @PathVariable Long id,
+            org.springframework.security.core.Authentication authentication) {
+        String username = authentication.getName();
+        return ResponseEntity.ok(orderService.claimOrder(id, username));
+    }
+
+    /**
+     * POST /api/delivery/orders/{id}/complete : Valider la livraison avec code.
+     * Body: { "code": "CONF-1234" }
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/complete")
+    public ResponseEntity<Order> completeDelivery(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload,
+            org.springframework.security.core.Authentication authentication) {
+        String username = authentication.getName();
+        String code = payload.get("code");
+        return ResponseEntity.ok(orderService.completeDelivery(id, username, code));
     }
 }

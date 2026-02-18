@@ -76,6 +76,9 @@ const Home = () => {
         <CategoryBar
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
+          categories={[
+            ...new Set(products.map((p) => p.categoryName).filter(Boolean)),
+          ]}
         />
       </div>
 

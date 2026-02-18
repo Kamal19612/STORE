@@ -1,5 +1,7 @@
 package com.sucrestore.api.service;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,11 +12,16 @@ import com.sucrestore.api.dto.ProductResponse;
 import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.ProductRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Service gérant la logique métier pour les produits.
  */
 @Service
+@RequiredArgsConstructor
+@Transactional
+@Slf4j
 public class ProductService {
 
     @Autowired
@@ -69,6 +76,7 @@ public class ProductService {
                 .slug(product.getSlug())
                 .shortDescription(product.getShortDescription())
                 .description(product.getDescription())
+                .volumeWeight(product.getVolumeWeight()) // Volume/Poids
                 .price(product.getPrice())
                 .oldPrice(product.getOldPrice())
                 .mainImage(product.getMainImage())
@@ -76,6 +84,7 @@ public class ProductService {
                 .categorySlug(product.getCategory().getSlug())
                 .categoryId(product.getCategory().getId()) // Mappage ID Catégorie
                 .stock(product.getStock()) // Mappage Stock réel
+                .externalId(product.getExternalId()) // Mappage External ID
                 .available(product.getStock() > 0)
                 .build();
     }
@@ -205,36 +214,66 @@ public class ProductService {
     }
 
     /**
-     * Importe un produit (Création ou Mise à jour basée sur le Slug). Méthode
-     * transactionnelle isolée pour permettre le traitement par lots "Best
-     * Effort".
+     * Importe un produit (Création ou Mise à jour basée sur l'ExternalId puis
+     * Slug). Méthode transactionnelle isolée pour permettre le traitement par
+     * lots "Best Effort".
      */
     @Transactional
-    public ProductResponse importProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl) {
+    public ProductResponse importProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
         // Validation basique
         if (request.getSlug() == null || request.getSlug().isEmpty()) {
             throw new RuntimeException("Le slug est obligatoire pour l'import");
         }
 
-        // Recherche par Slug
+        // PRIORITÉ 1: Recherche par ExternalId (si fourni et non vide)
+        if (externalId != null && !externalId.trim().isEmpty()) {
+            Optional<Product> existingByExternalId = productRepository.findByExternalId(externalId);
+            if (existingByExternalId.isPresent()) {
+                // Mise à jour du produit existant
+                Product existingProduct = existingByExternalId.get();
+
+                existingProduct.setName(request.getName());
+                existingProduct.setShortDescription(request.getShortDescription());
+                existingProduct.setDescription(request.getDescription());
+                existingProduct.setVolumeWeight(request.getVolumeWeight()); // Volume/Poids
+                existingProduct.setPrice(request.getPrice());
+                existingProduct.setStock(request.getStock());
+                existingProduct.setActive(true); // Réactiver si importé
+
+                // NE PAS régénérer le slug - garder l'ancien pour éviter les liens cassés
+                if (imageUrl != null && !imageUrl.isEmpty()) {
+                    existingProduct.setMainImage(imageUrl);
+                }
+
+                // Synchro catégorie
+                Category category = resolveCategory(request);
+                if (!existingProduct.getCategory().getId().equals(category.getId())) {
+                    existingProduct.setCategory(category);
+                }
+
+                return mapToResponse(productRepository.save(existingProduct));
+            }
+        }
+
+        // PRIORITÉ 2: Recherche par Slug (pour compatibilité avec anciens produits sans externalId)
         return productRepository.findBySlug(request.getSlug())
                 .map(existingProduct -> {
-                    // Update
+                    // Mise à jour + assignation de l'externalId si manquant
+                    if (externalId != null && !externalId.trim().isEmpty()) {
+                        existingProduct.setExternalId(externalId);
+                    }
+
                     existingProduct.setName(request.getName());
                     existingProduct.setShortDescription(request.getShortDescription());
                     existingProduct.setDescription(request.getDescription());
                     existingProduct.setPrice(request.getPrice());
-                    // On ne touche pas oldPrice en import auto sauf si spécifié (ici non géré dans CSV simple)
-
-                    // Gestion intelligente du stock: on remplace ou on ajoute ? Ici on remplace pour la synchro.
                     existingProduct.setStock(request.getStock());
-                    existingProduct.setActive(true); // Réactiver si importé
+                    existingProduct.setActive(true);
 
                     if (imageUrl != null && !imageUrl.isEmpty()) {
                         existingProduct.setMainImage(imageUrl);
                     }
 
-                    // Synchro catégorie
                     Category category = resolveCategory(request);
                     if (!existingProduct.getCategory().getId().equals(category.getId())) {
                         existingProduct.setCategory(category);
@@ -243,9 +282,31 @@ public class ProductService {
                     return mapToResponse(productRepository.save(existingProduct));
                 })
                 .orElseGet(() -> {
-                    // Create
-                    return createProduct(request, imageUrl);
+                    // NOUVEAU produit - création avec externalId
+                    return createProductWithExternalId(request, imageUrl, externalId);
                 });
+    }
+
+    /**
+     * Crée un nouveau produit avec externalId (helper pour l'import).
+     */
+    private ProductResponse createProductWithExternalId(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
+        Product product = Product.builder()
+                .name(request.getName())
+                .slug(request.getSlug())
+                .shortDescription(request.getShortDescription())
+                .description(request.getDescription())
+                .volumeWeight(request.getVolumeWeight()) // Volume/Poids
+                .price(request.getPrice())
+                .oldPrice(request.getOldPrice())
+                .stock(request.getStock())
+                .active(request.isActive())
+                .mainImage(imageUrl)
+                .externalId(externalId) // NOUVEAU: assignation de l'externalId
+                .category(resolveCategory(request))
+                .build();
+
+        return mapToResponse(productRepository.save(product));
     }
 
 }

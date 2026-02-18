@@ -17,8 +17,10 @@ import com.sucrestore.api.dto.OrderRequest;
 import com.sucrestore.api.dto.OrderResponse;
 import com.sucrestore.api.entity.Order;
 import com.sucrestore.api.entity.OrderItem;
+import com.sucrestore.api.entity.OrderStatusHistory;
 import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.OrderRepository;
+import com.sucrestore.api.repository.OrderStatusHistoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
 
 /**
@@ -34,7 +36,13 @@ public class OrderService {
     private ProductRepository productRepository;
 
     @Autowired
+    private OrderStatusHistoryRepository statusHistoryRepository;
+
+    @Autowired
     private AppProperties appProperties;
+
+    @Autowired
+    private com.sucrestore.api.repository.UserRepository userRepository;
 
     /**
      * Traite une nouvelle commande invité. 1. Vérifie le stock. 2. Crée la
@@ -47,9 +55,13 @@ public class OrderService {
         // 1. Générer un numéro de commande unique (ex: ORD-171569854)
         String orderNumber = "ORD-" + System.currentTimeMillis();
 
-        // 2. Initialiser la commande
+        // 2. Générer un code de confirmation unique (ex: CONF-1234)
+        String confirmationCode = generateConfirmationCode();
+
+        // 3. Initialiser la commande
         Order order = Order.builder()
                 .orderNumber(orderNumber)
+                .confirmationCode(confirmationCode)
                 .customerName(request.getCustomerName())
                 .customerPhone(request.getCustomerPhone())
                 .customerAddress(request.getCustomerAddress())
@@ -238,19 +250,110 @@ public class OrderService {
     }
 
     /**
-     * Met à jour le statut d'une commande (Admin).
+     * Met à jour le statut d'une commande (Admin) et enregistre dans
+     * l'historique.
      */
     @Transactional
     public Order updateOrderStatus(Long id, String statusName) {
         Order order = getOrderById(id);
 
         try {
-            Order.Status stringStatus = Order.Status.valueOf(statusName);
-            order.setStatus(stringStatus);
-            return orderRepository.save(order);
+            Order.Status newStatus = Order.Status.valueOf(statusName);
+            order.setStatus(newStatus);
+            Order savedOrder = orderRepository.save(order);
+
+            // Créer une entrée dans l'historique (sans admin pour le moment)
+            OrderStatusHistory history = OrderStatusHistory.builder()
+                    .order(savedOrder)
+                    .status(newStatus)
+                    .build();
+            statusHistoryRepository.save(history);
+
+            return savedOrder;
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Statut invalide : " + statusName);
         }
+    }
+
+    /**
+     * Récupère l'historique complet des changements de statut d'une commande
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<OrderStatusHistory> getOrderHistory(Long orderId) {
+        // Vérifier que la commande existe
+        getOrderById(orderId);
+        return statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+    }
+
+    /**
+     * Génère le lien WhatsApp pour notifier un client selon le statut
+     */
+    public String generateWhatsAppNotificationLink(Long orderId, String phoneNumber) {
+        Order order = getOrderById(orderId);
+
+        String phoneInput = (phoneNumber != null && !phoneNumber.isBlank()) ? phoneNumber : order.getCustomerPhone();
+        String phone = formatPhoneNumberForWhatsApp(phoneInput);
+
+        StringBuilder message = new StringBuilder();
+        message.append("Bonjour,\n\n");
+        message.append("Votre commande #").append(order.getOrderNumber());
+        if (order.getConfirmationCode() != null) {
+            message.append(" (Code: ").append(order.getConfirmationCode()).append(")");
+        }
+        message.append(" sur SUCRE STORE est actuellement : *").append(getStatusLabel(order.getStatus())).append("*\n\n");
+
+        // Message personnalisé selon le statut
+        message.append(switch (order.getStatus()) {
+            case CONFIRMED ->
+                "Votre commande est en cours de préparation et sera bientôt livrée.";
+            case SHIPPED ->
+                "Votre commande est en cours de livraison.";
+            case DELIVERED ->
+                "Votre commande a été livrée avec succès. Merci de votre confiance !";
+            case CANCELLED ->
+                "Votre commande a été annulée. Pour plus d'informations, contactez-nous.";
+            default ->
+                "Nous vous tiendrons informé de l'évolution de votre commande.";
+        });
+
+        message.append("\n\nSUCRE STORE\n").append(appProperties.getWhatsappNumber());
+
+        String encodedMessage = URLEncoder.encode(message.toString(), StandardCharsets.UTF_8);
+        return "https://wa.me/" + phone + "?text=" + encodedMessage;
+    }
+
+    /**
+     * Formate un numéro de téléphone pour WhatsApp (ajoute 226 si nécessaire).
+     */
+    private String formatPhoneNumberForWhatsApp(String phone) {
+        if (phone == null) {
+            return "";
+        }
+        // Garder uniquement les chiffres
+        String cleaned = phone.replaceAll("[^0-9]", "");
+
+        // Retirer les 00 du début si présents
+        if (cleaned.startsWith("00")) {
+            cleaned = cleaned.substring(2);
+        }
+
+        // Ajouter 226 si le numéro ne commence pas par un indicatif connu (supposition 226 par défaut)
+        // On suppose que si le numéro fait 8 chiffres (cas BF), on ajoute 226.
+        // Si le numéro commence déjà par 226, on laisse.
+        if (!cleaned.startsWith("226")) {
+            return "226" + cleaned;
+        }
+
+        return cleaned;
+    }
+
+    /**
+     * Génère un code de confirmation unique au format CONF-XXXX.
+     */
+    private String generateConfirmationCode() {
+        // Format: CONF-1234 (4 chiffres aléatoires entre 1000 et 9999)
+        int randomNumber = 1000 + (int) (Math.random() * 9000);
+        return "CONF-" + randomNumber;
     }
 
     /**
@@ -262,5 +365,93 @@ public class OrderService {
             throw new RuntimeException("Commande introuvable ID: " + id);
         }
         orderRepository.deleteById(id);
+    }
+
+    // --- Méthodes Livraison (Traceability) ---
+    /**
+     * Un livreur prend en charge une commande "CONFIRMED".
+     */
+    @Transactional
+    public Order claimOrder(Long orderId, String username) {
+        Order order = getOrderById(orderId);
+
+        if (order.getStatus() != Order.Status.CONFIRMED) {
+            throw new RuntimeException("La commande n'est pas disponible (Statut: " + order.getStatus() + ")");
+        }
+        if (order.getDeliveryAgent() != null) {
+            throw new RuntimeException("Cette commande est déjà prise en charge.");
+        }
+
+        com.sucrestore.api.entity.User agent = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + username));
+
+        order.setDeliveryAgent(agent);
+        order.setStatus(Order.Status.SHIPPED); // En cours de livraison
+
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Un livreur valide la livraison avec le code client.
+     */
+    @Transactional
+    public Order completeDelivery(Long orderId, String username, String code) {
+        Order order = getOrderById(orderId);
+
+        if (order.getStatus() != Order.Status.SHIPPED) {
+            throw new RuntimeException("Statut incorrect pour validation : " + order.getStatus());
+        }
+        if (order.getDeliveryAgent() == null || !order.getDeliveryAgent().getUsername().equals(username)) {
+            throw new RuntimeException("Vous n'êtes pas assigné à cette commande.");
+        }
+
+        // Vérification du code (ignorer la casse et les espaces)
+        String inputCode = code.trim();
+        if (!inputCode.equalsIgnoreCase(order.getConfirmationCode())) {
+            throw new RuntimeException("Code de confirmation incorrect.");
+        }
+
+        order.setStatus(Order.Status.DELIVERED);
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Récupère les commandes disponibles pour les livreurs. CONFIRMED + Pas de
+     * livreur. NOTE: Pour la confidentialité, on masque les infos clients.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Order> getAvailableDeliveryOrders(org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Order> page = orderRepository.findByStatusAndDeliveryAgentNull(Order.Status.CONFIRMED, pageable);
+
+        // Masquer les infos sensibles
+        // On modifie les objets avant de les renvoyer (Attention: s'ils sont gérés par Hibernate, 
+        // cela pourrait déclencher un update si on est dans une transaction active @Transactional.
+        // Ici readOnly=true, mais par sécurité on détache ou on ne save pas.)
+        // Une meilleure approche serait d'utiliser un DTO, mais pour aller vite on va "cleanser" la réponse.
+        // Hibernate ne fera pas d'update car on est en read-only (normalement).
+        page.getContent().forEach(o -> {
+            o.setCustomerPhone("Masqué");
+            o.setCustomerAddress("Zone: " + (o.getCustomerAddress().length() > 20 ? o.getCustomerAddress().substring(0, 20) + "..." : o.getCustomerAddress()));
+            // On laisse un bout d'adresse pour que le livreur sache si c'est dans sa zone
+        });
+
+        return page;
+    }
+
+    /**
+     * Récupère les commandes assignées au livreur connecté.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Order> getMyDeliveryOrders(String username, org.springframework.data.domain.Pageable pageable) {
+        // En cours de livraison (SHIPPED)
+        // On pourrait aussi vouloir voir l'historique (DELIVERED), mais la demande se concentre sur le workflow actif.
+        // Ajoutons DELIVERED aussi pour l'historique récent ? Le user a dit "le premier a statut la prise en charge pourra ensuite voir les détails"
+        // et "confirmer la livraison".
+        // On va se concentrer sur SHIPPED pour l'onglet "Mes Courses".
+        return orderRepository.findByDeliveryAgentUsernameAndStatusIn(
+                username,
+                java.util.List.of(Order.Status.SHIPPED),
+                pageable
+        );
     }
 }

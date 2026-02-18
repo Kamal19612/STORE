@@ -9,6 +9,7 @@ import {
   Package,
   Image as ImageIcon,
   Users,
+  Settings,
   LogOut,
 } from "lucide-react";
 
@@ -50,10 +51,11 @@ const AdminLayout = () => {
         {/* Logo & Close Button */}
         <div className="p-6 border-b border-gray-700 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
-              SUCRE STORE
-            </h1>
-            <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
+            <img
+              src="/logo-sucre.png"
+              alt="Sucre Store"
+              className="h-10 w-auto"
+            />
           </div>
           <button
             onClick={closeSidebar}
@@ -115,6 +117,19 @@ const AdminLayout = () => {
           >
             <ImageIcon className="w-5 h-5" />
             <span>Carrousel</span>
+          </Link>
+
+          <Link
+            to="/admin/settings"
+            onClick={closeSidebar}
+            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              isActive("/admin/settings")
+                ? "bg-primary text-secondary font-bold"
+                : "hover:bg-gray-700 text-gray-300"
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span>Paramètres</span>
           </Link>
 
           {user?.role === "SUPER_ADMIN" && (
