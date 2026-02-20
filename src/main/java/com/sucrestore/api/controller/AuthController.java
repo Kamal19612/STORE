@@ -17,6 +17,8 @@ import com.sucrestore.api.dto.auth.JwtResponse;
 import com.sucrestore.api.dto.auth.LoginRequest;
 import com.sucrestore.api.security.JwtUtils;
 
+import java.util.Map;
+
 import jakarta.validation.Valid;
 
 /**
@@ -74,5 +76,19 @@ public class AuthController {
         return ResponseEntity.ok(new JwtResponse(jwt,
                 userDetails.getUsername(),
                 roles));
+    }
+
+    /**
+     * Endpoint de déconnexion (Logout). Invalide la session côté serveur en
+     * incrémentant la version du token.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            userDetailsService.invalidateUserSession(userDetails.getUsername());
+        }
+        return ResponseEntity.ok(Map.of("message", "Déconnexion réussie !"));
     }
 }

@@ -138,6 +138,13 @@ public class Order {
         CANCELLED  // Annulée
     }
     /**
+     * Historique des statuts de la commande
+     */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<OrderStatusHistory> statusHistory = new ArrayList<>();
+
+    /**
      * Livreur assigné à la commande
      */
     @jakarta.persistence.ManyToOne

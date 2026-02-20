@@ -1,199 +1,61 @@
 import { useState } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import useAuthStore from "../store/authStore";
-import {
-  Menu,
-  X,
-  LayoutDashboard,
-  ShoppingBag,
-  Package,
-  Image as ImageIcon,
-  Users,
-  Settings,
-  LogOut,
-} from "lucide-react";
+import { Menu } from "lucide-react";
+import Sidebar from "../components/Sidebar";
 
 /**
  * Composant de layout pour les pages admin
  * Sidebar statique sur Desktop, Tiroir sur Mobile
  */
 const AdminLayout = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
-    window.location.href = "/admin/login";
+  const handleLogout = async () => {
+    await logout();
+    navigate("/admin/login");
   };
 
   const closeSidebar = () => setIsSidebarOpen(false);
 
-  const isActive = (path) => location.pathname.startsWith(path);
-
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen w-full flex bg-gray-50 dark:bg-[#1c191a] relative overflow-hidden transition-colors duration-300">
+      {/* Background Pattern/Gradient for Glassmorphism Context - Optimized (Static for Perf) */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--color-primary)]/5 rounded-full blur-[80px] will-change-transform" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--color-primary)]/5 rounded-full blur-[80px] will-change-transform" />
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.02] dark:opacity-[0.05]" />
+      </div>
+
       {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={closeSidebar}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col transition-transform duration-300 ease-in-out
-          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-        `}
-      >
-        {/* Logo & Close Button */}
-        <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-          <div>
-            <img
-              src="/logo-sucre.png"
-              alt="Sucre Store"
-              className="h-10 w-auto"
-            />
-          </div>
-          <button
-            onClick={closeSidebar}
-            className="lg:hidden text-gray-400 hover:text-white"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <Link
-            to="/admin/dashboard"
-            onClick={closeSidebar}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive("/admin/dashboard")
-                ? "bg-primary text-secondary font-bold"
-                : "hover:bg-gray-700 text-gray-300"
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Dashboard</span>
-          </Link>
-
-          <Link
-            to="/admin/orders"
-            onClick={closeSidebar}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive("/admin/orders")
-                ? "bg-primary text-secondary font-bold"
-                : "hover:bg-gray-700 text-gray-300"
-            }`}
-          >
-            <ShoppingBag className="w-5 h-5" />
-            <span>Commandes</span>
-          </Link>
-
-          <Link
-            to="/admin/products"
-            onClick={closeSidebar}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive("/admin/products")
-                ? "bg-primary text-secondary font-bold"
-                : "hover:bg-gray-700 text-gray-300"
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span>Produits</span>
-          </Link>
-
-          <Link
-            to="/admin/slider"
-            onClick={closeSidebar}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive("/admin/slider")
-                ? "bg-primary text-secondary font-bold"
-                : "hover:bg-gray-700 text-gray-300"
-            }`}
-          >
-            <ImageIcon className="w-5 h-5" />
-            <span>Carrousel</span>
-          </Link>
-
-          <Link
-            to="/admin/settings"
-            onClick={closeSidebar}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive("/admin/settings")
-                ? "bg-primary text-secondary font-bold"
-                : "hover:bg-gray-700 text-gray-300"
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-            <span>Paramètres</span>
-          </Link>
-
-          {user?.role === "SUPER_ADMIN" && (
-            <Link
-              to="/admin/users"
-              onClick={closeSidebar}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive("/admin/users")
-                  ? "bg-primary text-secondary font-bold"
-                  : "hover:bg-gray-700 text-gray-300"
-              }`}
-            >
-              <Users className="w-5 h-5" />
-              <span>Utilisateurs</span>
-            </Link>
-          )}
-        </nav>
-
-        {/* User Info & Logout */}
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">
-                {user?.username?.charAt(0).toUpperCase() || "A"}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {user?.username || "Admin"}
-              </p>
-              <p className="text-xs text-gray-400 truncate">
-                {user?.role || "ADMIN"}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Déconnexion</span>
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        user={user}
+        logout={handleLogout}
+        isMobileOpen={isSidebarOpen}
+        onMobileClose={closeSidebar}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative z-10 overflow-hidden">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-8 py-4 sticky top-0 z-30">
+        <header className="bg-white/80 dark:bg-[#242021]/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-white/5 px-4 lg:px-8 py-4 shrink-0 transition-colors duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-md hover:bg-gray-100"
+                className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 dark:text-white"
               >
-                <Menu className="h-6 w-6 text-gray-600" />
+                <Menu className="h-6 w-6 text-gray-600 dark:text-gray-300" />
               </button>
-              <h2 className="text-xl lg:text-2xl font-semibold text-gray-800 truncate">
+              <h2 className="text-xl lg:text-2xl font-semibold text-gray-800 dark:text-white truncate font-brand-serif">
                 Tableau de bord
               </h2>
             </div>
 
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600 hidden sm:block">
+              <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
                 {new Date().toLocaleDateString("fr-FR", {
                   weekday: "long",
                   year: "numeric",
@@ -205,8 +67,8 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-8 overflow-auto">
+        {/* Page Content - Scrollable Area */}
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto scroll-smooth">
           <Outlet />
         </main>
       </div>

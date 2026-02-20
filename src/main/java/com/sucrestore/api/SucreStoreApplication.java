@@ -45,7 +45,7 @@ public class SucreStoreApplication {
                 com.sucrestore.api.entity.User admin = com.sucrestore.api.entity.User.builder()
                         .username("admin")
                         .email("admin@sucrestore.com")
-                        .password(passwordEncoder.encode("admin123"))
+                        .password(passwordEncoder.encode("Pass_word.(1)@!"))
                         .role(com.sucrestore.api.entity.User.Role.SUPER_ADMIN)
                         .active(true)
                         .build();
@@ -53,15 +53,15 @@ public class SucreStoreApplication {
                 userRepository.save(admin);
                 System.out.println("✅ Administrateur par défaut créé avec succès !");
                 System.out.println("   Username: admin");
-                System.out.println("   Password: admin123");
+                System.out.println("   Password: Pass_word.(1)@!");
                 System.out.println("   ⚠️  CHANGEZ CE MOT DE PASSE EN PRODUCTION !");
             } else {
                 System.out.println("ℹ️  Administrateur 'admin' existe déjà.");
                 // Réinitialiser le mot de passe pour être sûr (utile en dev)
                 com.sucrestore.api.entity.User admin = userRepository.findByUsername("admin").get();
-                admin.setPassword(passwordEncoder.encode("admin123"));
+                admin.setPassword(passwordEncoder.encode("Pass_word.(1)@!"));
                 userRepository.save(admin);
-                System.out.println("🔄 Mot de passe réinitialisé à : admin123");
+                System.out.println("🔄 Mot de passe réinitialisé à : Pass_word.(1)@!");
             }
         };
     }

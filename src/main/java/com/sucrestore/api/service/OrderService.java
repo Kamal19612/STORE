@@ -42,6 +42,9 @@ public class OrderService {
     private AppProperties appProperties;
 
     @Autowired
+    private AppSettingService appSettingService;
+
+    @Autowired
     private com.sucrestore.api.repository.UserRepository userRepository;
 
     /**
@@ -126,13 +129,15 @@ public class OrderService {
     /**
      * Génère un lien WhatsApp pré-rempli avec le résumé de la commande.
      */
-    /**
-     * Génère un lien WhatsApp pré-rempli avec le résumé de la commande.
-     */
     private String generateWhatsAppLink(Order order) {
         StringBuilder message = new StringBuilder();
-        String storeName = appProperties.getStoreName() != null ? appProperties.getStoreName() : "STORE";
+
+        // Dynamic Settings with Fallback
+        String storeName = appSettingService.getSettingValue("store_name")
+                .orElse(appProperties.getStoreName() != null ? appProperties.getStoreName() : "STORE");
         String currency = appProperties.getCurrency() != null ? appProperties.getCurrency() : "FCFA";
+        String whatsappNumber = appSettingService.getSettingValue("whatsapp_number")
+                .orElse(appProperties.getWhatsappNumber());
 
         message.append("*NOUVELLE COMMANDE ").append(storeName).append("*").append("\n\n");
         message.append("Commande: #").append(order.getOrderNumber()).append("\n");
@@ -162,7 +167,7 @@ public class OrderService {
         }
 
         try {
-            return "https://wa.me/" + appProperties.getWhatsappNumber() + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
+            return "https://wa.me/" + whatsappNumber + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
         } catch (java.io.UnsupportedEncodingException e) {
             return "";
         }
@@ -174,8 +179,12 @@ public class OrderService {
     @Transactional(readOnly = true)
     public String generateStatusNotificationLink(Long orderId) {
         Order order = getOrderById(orderId);
-        String storeName = appProperties.getStoreName() != null ? appProperties.getStoreName() : "SUCRE STORE";
-        String storePhone = appProperties.getStorePhone() != null ? appProperties.getStorePhone() : "";
+
+        // Dynamic Settings with Fallback
+        String storeName = appSettingService.getSettingValue("store_name")
+                .orElse(appProperties.getStoreName() != null ? appProperties.getStoreName() : "SUCRE STORE");
+        String storePhone = appSettingService.getSettingValue("contact_phone")
+                .orElse(appProperties.getStorePhone() != null ? appProperties.getStorePhone() : "");
 
         StringBuilder message = new StringBuilder();
         message.append("Bonjour,\n\n");
@@ -291,6 +300,10 @@ public class OrderService {
     public String generateWhatsAppNotificationLink(Long orderId, String phoneNumber) {
         Order order = getOrderById(orderId);
 
+        // Dynamic Settings with Fallback
+        String whatsappNumber = appSettingService.getSettingValue("whatsapp_number")
+                .orElse(appProperties.getWhatsappNumber());
+
         String phoneInput = (phoneNumber != null && !phoneNumber.isBlank()) ? phoneNumber : order.getCustomerPhone();
         String phone = formatPhoneNumberForWhatsApp(phoneInput);
 
@@ -316,7 +329,7 @@ public class OrderService {
                 "Nous vous tiendrons informé de l'évolution de votre commande.";
         });
 
-        message.append("\n\nSUCRE STORE\n").append(appProperties.getWhatsappNumber());
+        message.append("\n\nSUCRE STORE\n").append(whatsappNumber);
 
         String encodedMessage = URLEncoder.encode(message.toString(), StandardCharsets.UTF_8);
         return "https://wa.me/" + phone + "?text=" + encodedMessage;

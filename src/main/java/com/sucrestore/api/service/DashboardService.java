@@ -24,6 +24,13 @@ public class DashboardService {
     /**
      * Calcule toutes les statistiques pour le dashboard admin
      */
+    /**
+     * Réinitialise les statistiques (Supprime toutes les commandes)
+     */
+    public void resetStatistics() {
+        orderRepository.deleteAll();
+    }
+
     public DashboardStatsResponse getStatistics() {
         // Nombre total de commandes
         Long totalOrders = orderRepository.count();

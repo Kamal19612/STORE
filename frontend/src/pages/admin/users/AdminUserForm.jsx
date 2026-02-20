@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
-import { ArrowLeft, Save, User, Lock, Mail, Shield } from "lucide-react";
+import { ArrowLeft, Save, User, Lock, Mail, Shield, Phone } from "lucide-react";
 import { toast } from "react-toastify";
 import adminUserService from "../../../services/adminUserService";
 
@@ -17,6 +17,10 @@ const AdminUserForm = () => {
     role: "MANAGER",
     active: true,
   });
+  const [phoneData, setPhoneData] = useState({
+    code: "+226",
+    number: "",
+  });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -24,6 +28,21 @@ const AdminUserForm = () => {
       // Use state if available (from list) or fetch
       if (location.state?.user) {
         const u = location.state.user;
+
+        // Split phone if exists
+        let pCode = "+226";
+        let pNum = "";
+
+        if (u.phone) {
+          const parts = u.phone.split(" ");
+          if (parts.length > 1 && parts[0].startsWith("+")) {
+            pCode = parts[0];
+            pNum = parts.slice(1).join(" ");
+          } else {
+            pNum = u.phone;
+          }
+        }
+
         setFormData({
           username: u.username,
           email: u.email,
@@ -31,6 +50,7 @@ const AdminUserForm = () => {
           active: u.active,
           password: "", // Don't fill password
         });
+        setPhoneData({ code: pCode, number: pNum });
       }
       // Ideally should fetch fresh data if relying on URL
     }
@@ -40,12 +60,18 @@ const AdminUserForm = () => {
     e.preventDefault();
     setLoading(true);
 
+    // Combine phone
+    const finalPhone = phoneData.number
+      ? `${phoneData.code} ${phoneData.number}`
+      : "";
+    const payload = { ...formData, phone: finalPhone };
+
     try {
       if (isEditMode) {
-        await adminUserService.updateUser(id, formData);
+        await adminUserService.updateUser(id, payload);
         toast.success("Utilisateur mis à jour");
       } else {
-        await adminUserService.createUser(formData);
+        await adminUserService.createUser(payload);
         toast.success("Utilisateur créé");
       }
       navigate("/admin/users");
@@ -126,6 +152,40 @@ const AdminUserForm = () => {
                   }
                   className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
+              </div>
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Téléphone
+              </label>
+              <div className="flex gap-2">
+                {/* Code */}
+                <div className="w-24 relative">
+                  <input
+                    type="text"
+                    value={phoneData.code}
+                    onChange={(e) =>
+                      setPhoneData({ ...phoneData, code: e.target.value })
+                    }
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-center"
+                    placeholder="+226"
+                  />
+                </div>
+                {/* Number */}
+                <div className="relative flex-1">
+                  <Phone className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={phoneData.number}
+                    onChange={(e) =>
+                      setPhoneData({ ...phoneData, number: e.target.value })
+                    }
+                    className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    placeholder="70 12 34 56"
+                  />
+                </div>
               </div>
             </div>
           </div>

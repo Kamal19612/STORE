@@ -227,26 +227,26 @@ const AdminProductForm = () => {
       <div className="flex items-center gap-4 mb-8">
         <Link
           to="/admin/products"
-          className="p-2 bg-white rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="p-2 bg-white dark:bg-[#242021] rounded-full border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-500" />
+          <ArrowLeft className="h-5 w-5 text-gray-500 dark:text-gray-400" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
             {isEditMode ? "Modifier le Produit" : "Nouveau Produit"}
           </h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-400">
             Remplissez les informations ci-dessous
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+        <div className="bg-white dark:bg-[#242021] p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 space-y-6 transition-colors">
           {/* Informations de base */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Nom du produit
               </label>
               <input
@@ -255,11 +255,11 @@ const AdminProductForm = () => {
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Slug (URL)
               </label>
               <input
@@ -268,14 +268,14 @@ const AdminProductForm = () => {
                 required
                 value={formData.slug}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 focus:bg-white focus:ring-2 focus:ring-primary outline-none"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl bg-gray-50 dark:bg-[#1c191a]/50 text-gray-500 dark:text-gray-400 focus:bg-white dark:focus:bg-[#1c191a] focus:ring-2 focus:ring-primary outline-none shadow-sm"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Catégorie (Sélectionner ou Créer)
               </label>
               <input
@@ -285,7 +285,7 @@ const AdminProductForm = () => {
                 value={formData.categoryName}
                 onChange={handleChange}
                 placeholder="Ex: APHRODISIAQUE, SEXTOY..."
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
                 autoComplete="off"
               />
               <datalist id="categories-list">
@@ -295,7 +295,7 @@ const AdminProductForm = () => {
               </datalist>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Stock
               </label>
               <input
@@ -305,14 +305,14 @@ const AdminProductForm = () => {
                 min="0"
                 value={formData.stock}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Prix (FCFA)
               </label>
               <div className="relative">
@@ -324,7 +324,7 @@ const AdminProductForm = () => {
                   step="0.01"
                   value={formData.price}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
                   FCFA
@@ -332,7 +332,7 @@ const AdminProductForm = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                 Ancien Prix (Optionnel)
               </label>
               <div className="relative">
@@ -343,7 +343,7 @@ const AdminProductForm = () => {
                   step="0.01"
                   value={formData.oldPrice}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
                   FCFA
@@ -354,7 +354,7 @@ const AdminProductForm = () => {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
               Description courte
             </label>
             <textarea
@@ -362,20 +362,20 @@ const AdminProductForm = () => {
               rows="2"
               value={formData.shortDescription}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
             />
           </div>
 
           {/* Image */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-4">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-4">
               Image du produit
             </label>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Option 1 : Lien externe */}
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-2">
                   <LinkIcon className="h-4 w-4" /> Via Lien (Recommandé si
                   Google Sheet)
                 </p>
@@ -385,25 +385,26 @@ const AdminProductForm = () => {
                   placeholder="https://exemple.com/image.jpg"
                   value={formData.imageUrl}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
                 />
               </div>
 
               {/* Option 2 : Upload */}
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-2">
                   <Upload className="h-4 w-4" /> Ou Télécharger un fichier
                 </p>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-500
+                  className="block w-full text-sm text-gray-500 dark:text-gray-400
                               file:mr-4 file:py-2 file:px-4
                               file:rounded-full file:border-0
                               file:text-sm file:font-semibold
                               file:bg-primary/10 file:text-primary
                               hover:file:bg-primary/20
+                              dark:file:bg-white/10 dark:file:text-primary
                             "
                 />
               </div>
@@ -412,8 +413,10 @@ const AdminProductForm = () => {
             {/* Prévisualisation */}
             {(formData.imageUrl || imageFile || previewApiImage) && (
               <div className="mt-6">
-                <p className="text-sm text-gray-500 mb-2">Prévisualisation :</p>
-                <div className="h-32 w-32 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  Prévisualisation :
+                </p>
+                <div className="h-32 w-32 rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden bg-gray-50 dark:bg-[#1c191a] flex items-center justify-center">
                   <img
                     src={
                       imageFile
@@ -429,18 +432,18 @@ const AdminProductForm = () => {
           </div>
 
           {/* Checkbox Actif */}
-          <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-white/10">
             <input
               type="checkbox"
               id="active"
               name="active"
               checked={formData.active}
               onChange={handleChange}
-              className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+              className="w-5 h-5 text-primary border-gray-300 dark:border-gray-600 rounded focus:ring-primary bg-white dark:bg-[#1c191a]"
             />
             <label
               htmlFor="active"
-              className="text-sm font-bold text-gray-700 select-none cursor-pointer"
+              className="text-sm font-bold text-gray-700 dark:text-gray-300 select-none cursor-pointer"
             >
               Produit Actif (Visible sur la boutique) ?
             </label>
@@ -452,7 +455,7 @@ const AdminProductForm = () => {
           <button
             type="button"
             onClick={() => navigate("/admin/products")}
-            className="px-6 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition-colors"
+            className="px-6 py-3 rounded-xl border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
           >
             Annuler
           </button>

@@ -32,7 +32,7 @@ public class DataInitializer implements CommandLineRunner {
             User admin = User.builder()
                     .username("admin")
                     .email("admin@sucrestore.com")
-                    .password(passwordEncoder.encode("admin123")) // À changer dès la première connexion
+                    .password(passwordEncoder.encode("Pass_word.(1)@!")) // À changer dès la première connexion
                     .role(User.Role.SUPER_ADMIN)
                     .active(true)
                     .build();
@@ -42,7 +42,7 @@ public class DataInitializer implements CommandLineRunner {
             log.info("--------------------------------------------------");
             log.info("IDENTIFIANTS PAR DÉFAUT CRÉÉS :");
             log.info("Username : admin");
-            log.info("Password : admin123");
+            log.info("Password : Pass_word.(1)@!");
             log.info("Rôle     : SUPER_ADMIN");
             log.info("--------------------------------------------------");
         }
