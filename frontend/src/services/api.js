@@ -41,4 +41,6 @@ export const getAdminSettings = () => api.get("/admin/settings");
 export const updateSettings = (settings) =>
   api.put("/admin/settings", settings);
 
+export const resetStats = () => api.post("/admin/dashboard/reset-stats");
+
 export default api;

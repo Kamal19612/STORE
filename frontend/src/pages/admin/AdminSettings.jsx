@@ -1,16 +1,31 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getAdminSettings, updateSettings } from "../../services/api";
-import { Save, Settings } from "lucide-react";
+import {
+  getAdminSettings,
+  updateSettings,
+  resetStats,
+} from "../../services/api";
+import { Save, Settings, Trash2 } from "lucide-react";
+import useAuthStore from "../../store/authStore";
 
 const AdminSettings = () => {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // Vérification stricte du rôle SUPER_ADMIN
+    if (user?.role !== "SUPER_ADMIN") {
+      toast.error("Accès non autorisé.");
+      navigate("/admin/dashboard");
+      return;
+    }
     fetchSettings();
-  }, []);
+  }, [user, navigate]);
 
   const fetchSettings = async () => {
     try {
@@ -63,8 +78,39 @@ const AdminSettings = () => {
             {/* Section Contact */}
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-secondary border-b pb-2">
-                Coordonnées
+                Coordonnées & Informations
               </h2>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nom de la boutique
+                </label>
+                <input
+                  type="text"
+                  name="store_name"
+                  value={settings.store_name || ""}
+                  onChange={handleChange}
+                  placeholder="SUCRE STORE"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Numéro WhatsApp (Commandes)
+                </label>
+                <input
+                  type="text"
+                  name="whatsapp_number"
+                  value={settings.whatsapp_number || ""}
+                  onChange={handleChange}
+                  placeholder="226XXXXXXXX"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Format international sans + (ex: 22670123456)
+                </p>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -167,6 +213,55 @@ const AdminSettings = () => {
               <Save className="w-5 h-5" />
               {saving ? "Sauvegarde..." : "Enregistrer les modifications"}
             </button>
+          </div>
+
+          {/* Zone de Danger */}
+          <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-6 max-w-4xl">
+            <h2 className="text-xl font-bold text-red-700 mb-2 flex items-center gap-2">
+              <Trash2 className="w-6 h-6" />
+              Zone de Danger
+            </h2>
+            <p className="text-red-600 mb-4 text-sm">
+              Les actions ci-dessous sont irréversibles. Soyez prudent.
+            </p>
+
+            <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-red-100">
+              <div>
+                <h3 className="font-semibold text-gray-800">
+                  Réinitialiser les statistiques
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Supprime <strong>toutes les commandes</strong> et remet les
+                  compteurs à zéro.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      "Êtes-vous SÛR de vouloir tout supprimer ?\nCette action est IRRÉVERSIBLE.",
+                    )
+                  ) {
+                    if (
+                      window.confirm(
+                        "Dernière chance : Cela supprimera TOUT l'historique des commandes. Confirmer ?",
+                      )
+                    ) {
+                      try {
+                        await resetStats();
+                        toast.success("Statistiques réinitialisées.");
+                      } catch (e) {
+                        console.error(e);
+                        toast.error("Erreur réinitialisation.");
+                      }
+                    }
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold transition-colors text-sm"
+              >
+                Réinitialiser Tout
+              </button>
+            </div>
           </div>
         </form>
       </div>

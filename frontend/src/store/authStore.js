@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import api from "../services/api";
 
 /**
  * Store Zustand pour gérer l'état d'authentification
@@ -51,14 +52,20 @@ const useAuthStore = create(
       /**
        * Déconnecte l'utilisateur et nettoie le state
        */
-      logout: () => {
-        sessionStorage.clear(); // Nettoyage explicite
-        localStorage.removeItem("token"); // Nettoyage legacy
-        set({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-        });
+      logout: async () => {
+        try {
+          await api.post("/auth/logout");
+        } catch (error) {
+          console.error("Erreur déconnexion serveur (ignorée):", error);
+        } finally {
+          sessionStorage.clear(); // Nettoyage explicite
+          localStorage.removeItem("token"); // Nettoyage legacy
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+          });
+        }
       },
 
       /**

@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/admin/dashboard")
-@PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
 public class AdminDashboardController {
 
     @Autowired
@@ -30,5 +30,16 @@ public class AdminDashboardController {
     public ResponseEntity<DashboardStatsResponse> getStats() {
         DashboardStatsResponse stats = dashboardService.getStatistics();
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * POST /api/admin/dashboard/reset-stats Réinitialise les statistiques
+     * (Supprime toutes les commandes). Réservé au SUPER_ADMIN.
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/reset-stats")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<?> resetStats() {
+        dashboardService.resetStatistics();
+        return ResponseEntity.ok().body("{\"message\": \"Statistiques réinitialisées avec succès\"}");
     }
 }

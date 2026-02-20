@@ -21,16 +21,20 @@ const ProductCard = ({ product }) => {
     e.stopPropagation();
     if (isInCart) {
       removeItem(product.id);
-      toast.info("Produit retiré du panier", {
-        icon: "🗑️",
-        autoClose: 2000,
-      });
+      // Silence removal toast to reduce noise
     } else {
+      // Check if it's the first item being added to the cart
+      const isFirstItem = items.length === 0;
+
       addItem(product);
-      toast.success("✓ Produit ajouté ! Vérifiez votre panier", {
-        icon: "🛒",
-        autoClose: 3000,
-      });
+
+      // Show toast ONLY for the first product added
+      if (isFirstItem) {
+        toast.success("Produit ajouté ! Vérifiez votre panier en haut ↗", {
+          icon: "🛒",
+          autoClose: 2000,
+        });
+      }
     }
   };
 
@@ -61,7 +65,7 @@ const ProductCard = ({ product }) => {
       <div className="product-card bg-white rounded-lg shadow-md overflow-hidden relative group hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
         {/* Product Image Zone */}
         <div
-          className="relative h-48 bg-gray-200 cursor-pointer"
+          className="relative h-40 bg-gray-200 cursor-pointer"
           onClick={handleImageClick}
         >
           {product.mainImage ? (
@@ -108,8 +112,8 @@ const ProductCard = ({ product }) => {
         </div>
 
         {/* Product Info */}
-        <div className="p-4">
-          <div className="mb-2">
+        <div className="p-3">
+          <div className="mb-1">
             <span
               className="text-xs font-semibold"
               style={{ color: "var(--primary)" }}
@@ -119,19 +123,19 @@ const ProductCard = ({ product }) => {
           </div>
 
           <h3
-            className="text-lg font-bold mb-2 line-clamp-2"
+            className="text-base font-bold mb-1 line-clamp-2 leading-tight"
             style={{ color: "var(--secondary)" }}
           >
             {product.name}
           </h3>
 
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
             {product.description || "Aucune description disponible."}
           </p>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mt-2">
             <span
-              className="text-2xl font-bold"
+              className="text-lg font-bold"
               style={{ color: "var(--primary)" }}
             >
               {formatPrice(product.price)}

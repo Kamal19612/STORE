@@ -19,22 +19,20 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { login, logout, isAuthenticated, user } = useAuthStore();
 
-  // Si on est déjà connecté, on affiche l'écran de choix
-  // Sauf si l'utilisateur a explicitement demandé de se déconnecter
-  const isSessionActive = isAuthenticated && user && !showLogin;
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user && !showLogin) {
+      const target =
+        user.role === "DELIVERY_AGENT"
+          ? "/delivery/dashboard"
+          : "/admin/dashboard";
+      navigate(target, { replace: true });
+    }
+  }, [isAuthenticated, user, showLogin, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleContinue = () => {
-    if (!user) return;
-    const target =
-      user.role === "DELIVERY_AGENT"
-        ? "/delivery/dashboard"
-        : "/admin/dashboard";
-    navigate(target);
   };
 
   const handleLogoutAndSwitch = () => {
@@ -83,53 +81,6 @@ const AdminLogin = () => {
       setIsSubmitting(false);
     }
   };
-
-  // --- Rendu : Session Active ---
-  if (isSessionActive) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-yellow-50">
-        <div className="w-full max-w-md px-6">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100 text-center">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <ShieldCheck className="h-8 w-8 text-green-600" />
-            </div>
-
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              Session Active
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Vous êtes déjà connecté en tant que <br />
-              <span className="font-bold text-gray-800">{user.username}</span>
-              <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
-                {user.role}
-              </span>
-            </p>
-
-            <div className="space-y-3">
-              <button
-                onClick={handleContinue}
-                className="w-full py-3 px-4 rounded-lg font-semibold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2 shadow-md transition-all"
-              >
-                <LayoutDashboard className="h-5 w-5" />
-                Continuer vers le Dashboard
-              </button>
-
-              <button
-                onClick={handleLogoutAndSwitch}
-                className="w-full py-3 px-4 rounded-lg font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2 transition-all"
-              >
-                <LogOut className="h-5 w-5" />
-                Se déconnecter / Changer de compte
-              </button>
-            </div>
-          </div>
-          <div className="mt-6 text-center text-xs text-gray-400">
-            Sucre Store Secure Access
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // --- Rendu : Formulaire de Connexion ---
   return (

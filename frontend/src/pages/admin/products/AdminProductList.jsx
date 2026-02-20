@@ -132,14 +132,36 @@ const AdminProductList = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="px-6 py-10 text-center text-gray-500"
-                  >
-                    Chargement...
-                  </td>
-                </tr>
+                // Skeleton Loaders
+                [...Array(5)].map((_, index) => (
+                  <tr key={`skeleton-${index}`} className="animate-pulse">
+                    <td className="px-6 py-4">
+                      <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+                      <div className="h-3 w-20 bg-gray-100 dark:bg-gray-800 rounded"></div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <div className="h-9 w-9 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                        <div className="h-9 w-9 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : products.length === 0 ? (
                 <tr>
                   <td
@@ -164,7 +186,7 @@ const AdminProductList = () => {
                         />
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                       {product.name}
                       {product.slug && (
                         <div className="text-xs text-gray-400 font-normal">
@@ -172,17 +194,17 @@ const AdminProductList = () => {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
                         {product.categoryName}
                       </span>
                     </td>
                     <td className="px-6 py-4 font-medium text-primary">
                       {product.price.toLocaleString()} FCFA
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                       {product.stock > 0 ? (
-                        <span className="text-green-600 font-bold">
+                        <span className="text-green-600 dark:text-green-400 font-bold">
                           {product.stock}
                         </span>
                       ) : (
@@ -191,7 +213,7 @@ const AdminProductList = () => {
                     </td>
                     <td className="px-6 py-4">
                       {product.available ? (
-                        <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium">
+                        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
                           <CheckCircle className="h-4 w-4" /> Actif
                         </span>
                       ) : (
@@ -206,14 +228,14 @@ const AdminProductList = () => {
                           onClick={() =>
                             navigate(`/admin/products/edit/${product.id}`)
                           }
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                           title="Modifier"
                         >
                           <Edit className="h-5 w-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(product.id)}
-                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           title="Supprimer"
                         >
                           <Trash2 className="h-5 w-5" />
@@ -228,22 +250,22 @@ const AdminProductList = () => {
         </div>
 
         {/* Pagination Simple */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-          <span className="text-sm text-gray-500">
+        <div className="bg-gray-50 dark:bg-[#242021] px-6 py-4 border-t border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             Page {page + 1} sur {totalPages > 0 ? totalPages : 1}
           </span>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Précédent
             </button>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages - 1}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Suivant
             </button>

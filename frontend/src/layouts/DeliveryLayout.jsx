@@ -6,9 +6,9 @@ const DeliveryLayout = () => {
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
   };
 
   return (
