@@ -7,10 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import com.sucrestore.api.entity.Slider;
 import com.sucrestore.api.repository.SliderRepository;
 
 @Service
+@Transactional
 public class SliderService {
 
     @Autowired
@@ -58,6 +61,9 @@ public class SliderService {
 
     // Supprimer un slider
     public void deleteSlider(Long id) {
+        if (!sliderRepository.existsById(id)) {
+            throw new RuntimeException("Le slider avec l'ID " + id + " n'existe pas.");
+        }
         sliderRepository.deleteById(id);
     }
 
