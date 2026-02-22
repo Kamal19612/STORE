@@ -216,21 +216,21 @@ const AdminSettings = () => {
           </div>
 
           {/* Zone de Danger */}
-          <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-6 max-w-4xl">
-            <h2 className="text-xl font-bold text-red-700 mb-2 flex items-center gap-2">
+          <div className="mt-8 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg p-6 max-w-4xl">
+            <h2 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
               <Trash2 className="w-6 h-6" />
               Zone de Danger
             </h2>
-            <p className="text-red-600 mb-4 text-sm">
+            <p className="text-red-600 dark:text-red-400/80 mb-4 text-sm">
               Les actions ci-dessous sont irréversibles. Soyez prudent.
             </p>
 
-            <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-red-100">
+            <div className="flex items-center justify-between bg-white dark:bg-secondary p-4 rounded-lg border border-red-100 dark:border-red-900/20">
               <div>
-                <h3 className="font-semibold text-gray-800">
+                <h3 className="font-semibold text-gray-800 dark:text-white">
                   Réinitialiser les statistiques
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Supprime <strong>toutes les commandes</strong> et remet les
                   compteurs à zéro.
                 </p>

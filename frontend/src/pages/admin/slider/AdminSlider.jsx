@@ -93,7 +93,12 @@ const AdminSlider = () => {
         toast.success("Image supprimée");
         fetchSlides();
       } catch (error) {
-        toast.error("Erreur suppression");
+        const errorMsg =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          error.message ||
+          "Erreur suppression";
+        toast.error("Erreur: " + errorMsg);
       }
     }
   };
