@@ -73,4 +73,14 @@ public class DeliveryController {
         String code = payload.get("code");
         return ResponseEntity.ok(orderService.completeDelivery(id, username, code));
     }
+
+    /**
+     * GET /api/delivery/orders/sync : Synchronisation des données (Mode
+     * Offline). Query Param: lastSync (ISO string)
+     */
+    @GetMapping("/sync")
+    public ResponseEntity<java.util.List<Order>> syncOrders(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String lastSync) {
+        return ResponseEntity.ok(orderService.syncOrders(lastSync));
+    }
 }

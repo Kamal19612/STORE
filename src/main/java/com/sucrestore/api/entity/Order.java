@@ -145,6 +145,14 @@ public class Order {
     private List<OrderStatusHistory> statusHistory = new ArrayList<>();
 
     /**
+     * Indicateur de suppression logique (soft delete) pour la synchronisation
+     * mobile.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
+
+    /**
      * Livreur assigné à la commande
      */
     @jakarta.persistence.ManyToOne

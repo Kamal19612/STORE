@@ -11,6 +11,7 @@ import {
   User,
   RefreshCw,
   ChevronRight,
+  Store,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import api from "../../services/api";
@@ -21,6 +22,7 @@ const DeliveryDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [validationCode, setValidationCode] = useState({}); // { orderId: "code" }
   const [refreshing, setRefreshing] = useState(false);
+  const [settings, setSettings] = useState({});
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -39,14 +41,24 @@ const DeliveryDashboard = () => {
       setRefreshing(false);
     }
   };
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get("/public/settings");
+      setSettings(response.data || {});
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
+    fetchSettings();
   }, [activeTab]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+    fetchSettings();
   };
 
   const handleClaimOrder = async (id) => {
@@ -208,7 +220,51 @@ const DeliveryDashboard = () => {
 
               {/* Card Body */}
               <div className="p-5 space-y-4">
-                {/* Main Address */}
+                {/* Point de retrait */}
+                <div className="flex gap-3">
+                  <div className="mt-1 w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <Store className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <h4 className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider">
+                        BOUTIQUE
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3
+                        onClick={() =>
+                          openMap(
+                            settings.store_location || settings.contact_address,
+                          )
+                        }
+                        className="text-lg font-bold text-gray-900 leading-tight truncate cursor-pointer hover:text-primary transition-colors"
+                      >
+                        {settings.store_name || "SUCRE STORE"}
+                      </h3>
+                      {settings.whatsapp_number && (
+                        <a
+                          href={`tel:${settings.whatsapp_number}`}
+                          className="text-[10px] font-bold text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors whitespace-nowrap"
+                        >
+                          📞 {settings.whatsapp_number}
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      {settings.contact_address || "Adresse non configurée"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Visual Divider */}
+                <div className="flex flex-col items-center w-10 -my-3 opacity-20">
+                  <div className="w-1 h-1 rounded-full bg-gray-400 my-0.5" />
+                  <div className="w-1 h-1 rounded-full bg-gray-400 my-0.5" />
+                  <div className="w-1 h-1 rounded-full bg-gray-400 my-0.5" />
+                </div>
+
+                {/* Main Address (Delivery) */}
                 <div className="flex gap-3">
                   <div className="mt-1 w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                     <MapPin className="h-5 w-5" />

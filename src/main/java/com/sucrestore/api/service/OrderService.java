@@ -370,14 +370,27 @@ public class OrderService {
     }
 
     /**
-     * Supprime définitivement une commande (Super Admin).
+     * Supprime logiquement une commande (Soft Delete).
      */
     @Transactional
     public void deleteOrder(Long id) {
-        if (!orderRepository.existsById(id)) {
-            throw new RuntimeException("Commande introuvable ID: " + id);
+        Order order = getOrderById(id);
+        order.setDeleted(true);
+        orderRepository.save(order);
+    }
+
+    /**
+     * Récupère les commandes modifiées pour la synchronisation.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Order> syncOrders(String lastSyncStr) {
+        java.time.LocalDateTime lastSync;
+        if (lastSyncStr == null || lastSyncStr.isBlank()) {
+            lastSync = java.time.LocalDateTime.now().minusDays(30); // Default to last 30 days
+        } else {
+            lastSync = java.time.LocalDateTime.parse(lastSyncStr);
         }
-        orderRepository.deleteById(id);
+        return orderRepository.findByUpdatedAtAfter(lastSync);
     }
 
     // --- Méthodes Livraison (Traceability) ---
