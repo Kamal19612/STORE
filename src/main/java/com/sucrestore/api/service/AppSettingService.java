@@ -45,7 +45,7 @@ public class AppSettingService {
         String[] publicKeys = {
             "contact_phone", "contact_email", "contact_address",
             "social_facebook", "social_instagram", "footer_copyright",
-            "whatsapp_number", "store_name"
+            "whatsapp_number", "store_name", "store_location"
         };
 
         for (String key : publicKeys) {

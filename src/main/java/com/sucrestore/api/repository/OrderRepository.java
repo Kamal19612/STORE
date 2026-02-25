@@ -38,6 +38,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByStatusAndDeliveryAgentNull(Order.Status status, Pageable pageable);
 
     /**
+     * Trouve les commandes modifiées après une certaine date.
+     */
+    List<Order> findByUpdatedAtAfter(java.time.LocalDateTime lastSync);
+
+    /**
      * Trouve les commandes assignées à un livreur spécifique avec certains
      * statuts.
      */

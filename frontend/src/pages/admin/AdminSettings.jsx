@@ -152,6 +152,23 @@ const AdminSettings = () => {
                   className="w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                 ></textarea>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Localisation Google Maps (Lien ou Coordonnées)
+                </label>
+                <input
+                  type="text"
+                  name="store_location"
+                  value={settings.store_location || ""}
+                  onChange={handleChange}
+                  placeholder="ex: 12.371, -1.519 ou lien maps"
+                  className="w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ce champ est utilisé pour le bouton "Y aller" des livreurs.
+                </p>
+              </div>
             </div>
 
             {/* Section Réseaux Sociaux & Divers */}
