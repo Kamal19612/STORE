@@ -67,7 +67,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable) // Désactive CSRF car nous utilisons des tokens JWT (Stateless)
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler)) // Gestionnaire d'erreurs 401
-                .cors(cors -> cors.configure(http)) // Active la configuration CORS
+                .cors(org.springframework.security.config.Customizer.withDefaults()) // Active la configuration CORS utilisant le bean corsConfigurationSource()
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Pas de session serveur (HttpSession)
                 .authorizeHttpRequests(auth
                         -> // Liste blanche (URLs publiques)

@@ -8,6 +8,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -16,9 +17,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.sucrestore.api.dto.SliderRequest;
+
 import com.sucrestore.api.entity.Slider;
 import com.sucrestore.api.service.SliderService;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api")
@@ -47,14 +52,26 @@ public class SliderController {
      * Admin : Créer un nouveau slider (upload image obligatoire).
      */
     @PostMapping("/admin/sliders")
-    public ResponseEntity<Slider> createSlider(
-            @RequestParam(value = "title", required = false) String title,
-            @RequestParam(value = "description", required = false) String description,
-            @RequestParam(value = "image", required = false) MultipartFile image,
-            @RequestParam(value = "imageUrl", required = false) String imageUrl,
-            @RequestParam(value = "displayOrder", defaultValue = "10") Integer displayOrder,
-            @RequestParam(value = "active", defaultValue = "true") Boolean active) {
-        return ResponseEntity.ok(sliderService.createSlider(title, description, image, imageUrl, displayOrder, active));
+    public ResponseEntity<Slider> createSlider(@ModelAttribute SliderRequest request) {
+        
+        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        System.out.println("!!! DEBUG: SliderController.createSlider called");
+        System.out.println("!!! Title: " + request.getTitle());
+        System.out.println("!!! Image is null: " + (request.getImage() == null));
+        if (request.getImage() != null) {
+            System.out.println("!!! Image Original Name: " + request.getImage().getOriginalFilename());
+            System.out.println("!!! Image Content Type: " + request.getImage().getContentType());
+            System.out.println("!!! Image Size: " + request.getImage().getSize());
+        }
+        System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+        return ResponseEntity.ok(sliderService.createSlider(
+                request.getTitle(), 
+                request.getDescription(), 
+                request.getImage(), 
+                request.getImageUrl(), 
+                request.getDisplayOrder(), 
+                request.getActive()));
     }
 
     /**

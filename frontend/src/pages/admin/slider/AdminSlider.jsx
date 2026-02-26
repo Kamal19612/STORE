@@ -19,7 +19,7 @@ const AdminSlider = () => {
   // State pour le nouveau slide
   const [newSlide, setNewSlide] = useState({
     title: "",
-    imageUrl: "",
+    description: "",
     displayOrder: 10,
     active: true,
     imageFile: null,
@@ -54,7 +54,7 @@ const AdminSlider = () => {
     try {
       const formData = new FormData();
       formData.append("title", newSlide.title);
-      formData.append("description", newSlide.title);
+      formData.append("description", newSlide.description || "");
       formData.append("displayOrder", newSlide.displayOrder);
       formData.append("active", newSlide.active);
 
@@ -66,12 +66,21 @@ const AdminSlider = () => {
         formData.append("image", newSlide.imageFile);
       }
 
+      console.log("!!! FRONTEND DEBUG: Sending FormData !!!");
+      for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+          console.log(`- ${pair[0]}: File(name=${pair[1].name}, size=${pair[1].size})`);
+        } else {
+          console.log(`- ${pair[0]}: ${pair[1]}`);
+        }
+      }
+
       await sliderService.create(formData);
       toast.success("Image ajoutée !");
       setIsAdding(false);
       setNewSlide({
         title: "",
-        imageUrl: "",
+        description: "",
         displayOrder: 10,
         active: true,
         imageFile: null,
@@ -81,7 +90,10 @@ const AdminSlider = () => {
     } catch (error) {
       console.error("Erreur détaillée:", error);
       const errorMsg =
-        error.response?.data?.error || error.message || "Erreur inconnue";
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        "Erreur inconnue";
       toast.error("Erreur: " + errorMsg);
     }
   };
@@ -135,7 +147,22 @@ const AdminSlider = () => {
           </p>
         </div>
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (!isAdding) {
+              const nextOrder = slides.length > 0 
+                ? Math.min(...slides.map(s => s.displayOrder)) - 1 
+                : 10;
+              setNewSlide({
+                title: "",
+                description: "",
+                displayOrder: nextOrder,
+                active: true,
+                imageFile: null,
+              });
+              setPreviewUrl("");
+            }
+            setIsAdding(!isAdding);
+          }}
           className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/25"
         >
           {isAdding ? (
@@ -167,6 +194,20 @@ const AdminSlider = () => {
                   }
                   className="w-full p-2 border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                   placeholder="Ex: Nouvelle Collection"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newSlide.description}
+                  onChange={(e) =>
+                    setNewSlide({ ...newSlide, description: e.target.value })
+                  }
+                  className="w-full p-2 border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Petite description..."
                 />
               </div>
               <div>

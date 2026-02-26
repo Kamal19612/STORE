@@ -1,5 +1,10 @@
 package com.sucrestore.api.service;
 
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,7 +12,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.sucrestore.api.dto.ImportSummary;
+import com.sucrestore.api.dto.ProductRequest;
 import com.sucrestore.api.dto.ProductResponse;
 import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.entity.Product;
@@ -290,23 +300,113 @@ public class ProductService {
     /**
      * Crée un nouveau produit avec externalId (helper pour l'import).
      */
-    private ProductResponse createProductWithExternalId(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
-        Product product = Product.builder()
-                .name(request.getName())
-                .slug(request.getSlug())
-                .shortDescription(request.getShortDescription())
-                .description(request.getDescription())
-                .volumeWeight(request.getVolumeWeight()) // Volume/Poids
-                .price(request.getPrice())
-                .oldPrice(request.getOldPrice())
-                .stock(request.getStock())
-                .active(request.isActive())
-                .mainImage(imageUrl)
-                .externalId(externalId) // NOUVEAU: assignation de l'externalId
-                .category(resolveCategory(request))
-                .build();
+    public ProductResponse createProductWithExternalId(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
+        Product product = new Product();
+        product.setExternalId(externalId);
+        product.setName(request.getName());
+        product.setSlug(request.getSlug());
+        product.setShortDescription(request.getShortDescription());
+        product.setDescription(request.getDescription());
+        product.setVolumeWeight(request.getVolumeWeight()); // Volume/Poids
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+        product.setActive(true);
+        product.setMainImage(imageUrl);
+
+        // Catégorie
+        product.setCategory(resolveCategory(request));
 
         return mapToResponse(productRepository.save(product));
     }
 
+    /**
+     * Traite un fichier CSV uploadé pour importer des produits.
+     */
+    public ImportSummary processCsvImport(MultipartFile file) {
+        ImportSummary summary = new ImportSummary();
+
+        try (Reader reader = new InputStreamReader(file.getInputStream());
+             CSVReader csvReader = new CSVReaderBuilder(reader).withSkipLines(1).build()) { // Ignore la ligne d'en-tête
+
+            List<String[]> rows = csvReader.readAll();
+            int rowNum = 2; // Commence à 2 (1 = en-tête)
+
+            for (String[] row : rows) {
+                summary.incrementTotal();
+                try {
+                    // Format attendu: 0:Nom, 1:Catégorie, 2:Prix, 3:ImageURL, 4:Description, 5:Stock, 6:ExternalId(Optionnel)
+                    if (row.length < 5) {
+                        summary.addError(rowNum, "Colonnes manquantes (Minimum requis: Nom, Catégorie, Prix, Image, Description)");
+                        rowNum++;
+                        continue;
+                    }
+
+                    String name = row[0].trim();
+                    String categoryName = row[1].trim();
+                    String priceStr = row[2].trim();
+                    String imageUrl = row[3].trim();
+                    String description = row[4].trim();
+                    String stockStr = row.length > 5 ? row[5].trim() : "0";
+                    String externalId = row.length > 6 ? row[6].trim() : null;
+
+                    if (name.isEmpty() || categoryName.isEmpty() || priceStr.isEmpty()) {
+                        summary.addError(rowNum, "Champs obligatoires manquants (Nom, Catégorie, Prix)");
+                        rowNum++;
+                        continue;
+                    }
+
+                    BigDecimal price;
+                    try {
+                        price = new BigDecimal(priceStr.replace(",", "."));
+                    } catch (NumberFormatException e) {
+                        summary.addError(rowNum, "Format de prix invalide: " + priceStr);
+                        rowNum++;
+                        continue;
+                    }
+
+                    int stock = 0;
+                    try {
+                        if (!stockStr.isEmpty()) {
+                            stock = (int) Double.parseDouble(stockStr); // Gère les ".0" potentiels
+                        }
+                    } catch (NumberFormatException e) {
+                        // Stock par défaut à 0 si erreur
+                    }
+
+                    // Générer un slug basique si aucun externalId n'est fourni
+                    String slug = name.toLowerCase().replaceAll("[^a-z0-9]+", "-");
+                    if (externalId != null && !externalId.isEmpty()) {
+                        slug = externalId + "-" + slug;
+                    }
+                    if (slug.length() > 250) {
+                        slug = slug.substring(0, 250);
+                    }
+
+                    ProductRequest request = new ProductRequest();
+                    request.setName(name);
+                    request.setSlug(slug);
+                    request.setCategoryId(null); // On utilise categoryName
+                    request.setCategoryName(categoryName);
+                    request.setPrice(price);
+                    request.setStock(stock);
+                    request.setDescription(description);
+                    request.setShortDescription(description.length() > 100 ? description.substring(0, 100) : description);
+                    // imageUrl est passé séparément à importProduct()
+
+                    importProduct(request, imageUrl, externalId);
+                    summary.incrementSuccess();
+
+                } catch (Exception e) {
+                    summary.addError(rowNum, "Erreur inattendue: " + e.getMessage());
+                }
+                rowNum++;
+            }
+
+        } catch (Exception e) {
+            log.error("Erreur lors de la lecture du CSV", e);
+            throw new RuntimeException("Erreur de parsing CSV: " + e.getMessage());
+        }
+
+        return summary;
+    }
 }

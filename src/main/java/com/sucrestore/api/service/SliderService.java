@@ -9,9 +9,14 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+
 import com.sucrestore.api.entity.Slider;
 import com.sucrestore.api.repository.SliderRepository;
 
+@Slf4j
 @Service
 @Transactional
 public class SliderService {
@@ -24,28 +29,33 @@ public class SliderService {
 
     // Récupérer tous les sliders (pour Admin)
     public List<Slider> getAllSliders() {
-        return sliderRepository.findAllByOrderByDisplayOrderAsc();
+        System.out.println("!!! DEBUG: SliderService.getAllSliders (ORDER DESC)");
+        return sliderRepository.findAll(Sort.by(Direction.DESC, "displayOrder"));
     }
 
     // Récupérer les sliders actifs (pour Public)
     public List<Slider> getActiveSliders() {
-        return sliderRepository.findAllByActiveTrueOrderByDisplayOrderAsc();
+        System.out.println("!!! DEBUG: SliderService.getActiveSliders (ORDER DESC)");
+        return sliderRepository.findAllByActiveTrueOrderByDisplayOrderDesc();
     }
 
     // Créer un slider (fichier ou URL optionnels)
     public Slider createSlider(String title, String description, MultipartFile imageFile, String imageUrl, Integer order, Boolean active) {
         String finalImageUrl = imageUrl;
+        
+        System.out.println("!!! DEBUG: SliderService.createSlider called");
+        System.out.println("!!! imageFile status: " + (imageFile == null ? "NULL" : (imageFile.isEmpty() ? "EMPTY" : "PRESENT")));
 
         if (imageFile != null && !imageFile.isEmpty()) {
             String fileName = fileStorageService.storeFile(imageFile);
-            finalImageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                    .path("/uploads/")
-                    .path(fileName)
-                    .toUriString();
+            finalImageUrl = "/uploads/" + fileName;
         }
 
         if (finalImageUrl == null || finalImageUrl.trim().isEmpty()) {
-            throw new RuntimeException("Une image est obligatoire (Fichier ou URL).");
+            String debugInfo = String.format("(imageFile is %s, imageUrl is '%s')", 
+                (imageFile == null ? "null" : (imageFile.isEmpty() ? "empty" : "present")), 
+                (imageUrl == null ? "null" : imageUrl));
+            throw new RuntimeException("Une image est obligatoire (Fichier ou URL). " + debugInfo);
         }
 
         Slider slider = Slider.builder()

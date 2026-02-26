@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/dbstore
     username: postgres
-    password: 196120
+    password: i27O6f6GaaJ2E7pbgLH3X3w
     driver-class-name: org.postgresql.Driver
   servlet:
     multipart:
@@ -42,6 +42,6 @@ google:
     sync-rate: 60000 # Taux de synchronisation en millisecondes (60000ms = 1 minute)
 
 server:
-  port: 8080
+  port: 8081
   # servlet:
   # context-path: /api # RETIRÉ : Cause un double préfixe /api/api car les contrôleurs ont déjà @RequestMapping("/api")

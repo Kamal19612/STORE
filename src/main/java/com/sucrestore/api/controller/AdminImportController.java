@@ -18,14 +18,14 @@ import com.sucrestore.api.service.ProductImportService;
 public class AdminImportController {
 
     @Autowired
-    private ProductImportService productImportService;
+    private com.sucrestore.api.service.ProductService productService;
 
     @Autowired
     private com.sucrestore.api.service.GoogleSheetsService googleSheetsService;
 
-    @PostMapping("/import")
+    @PostMapping(value = "/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ImportSummary> importProducts(@RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(productImportService.importProducts(file));
+        return ResponseEntity.ok(productService.processCsvImport(file));
     }
 
     @PostMapping("/import-google-sheets")
