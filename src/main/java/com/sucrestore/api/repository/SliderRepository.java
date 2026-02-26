@@ -10,7 +10,7 @@ import com.sucrestore.api.entity.Slider;
 @Repository
 public interface SliderRepository extends JpaRepository<Slider, Long> {
 
-    List<Slider> findAllByActiveTrueOrderByDisplayOrderAsc();
+    List<Slider> findAllByActiveTrueOrderByDisplayOrderDesc();
 
-    List<Slider> findAllByOrderByDisplayOrderAsc();
+    List<Slider> findAllByOrderByDisplayOrderDesc();
 }

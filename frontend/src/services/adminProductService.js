@@ -24,11 +24,7 @@ const adminProductService = {
       formData.append("image", imageFile);
     }
 
-    const response = await api.post("/admin/products", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/products", formData);
     return response.data;
   },
 
@@ -42,11 +38,7 @@ const adminProductService = {
       formData.append("image", imageFile);
     }
 
-    const response = await api.put(`/admin/products/${id}`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.put(`/admin/products/${id}`, formData);
     return response.data;
   },
 
@@ -63,11 +55,7 @@ const adminProductService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await api.post("/admin/products/import", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/products/import", formData);
     return response.data;
   },
 

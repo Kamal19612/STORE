@@ -15,11 +15,7 @@ const sliderService = {
 
   // Admin: Créer un slider
   create: async (formData) => {
-    const response = await api.post("/admin/sliders", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/sliders", formData);
     return response.data;
   },
 

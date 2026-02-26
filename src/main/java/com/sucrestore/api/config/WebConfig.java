@@ -21,10 +21,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(@org.springframework.lang.NonNull ResourceHandlerRegistry registry) {
         String location = appProperties.getStorage().getLocation();
-        Path uploadDir = Paths.get(location);
-        String uploadPath = uploadDir.toFile().getAbsolutePath();
+        Path uploadDir = Paths.get(location).toAbsolutePath().normalize();
 
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:/" + uploadPath + "/");
+                .addResourceLocations(uploadDir.toUri().toString());
     }
 }
