@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.sucrestore.api.dto.ImportSummary;
-import com.sucrestore.api.service.ProductImportService;
 
 @RestController
 @RequestMapping("/api/admin/products")

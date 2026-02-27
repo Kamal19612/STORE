@@ -156,7 +156,7 @@ const Home = () => {
           {/* Header Mobile Only (Title) */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-extrabold text-secondary tracking-tight font-brand-serif">
+              <h1 className="text-3xl font-extrabold text-secondary tracking-tight">
                 {selectedCategory === "Tous"
                   ? "Nos Produits"
                   : selectedCategory}
