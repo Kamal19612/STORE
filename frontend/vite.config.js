@@ -16,5 +16,6 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+	    allowedHosts: ["sucrestore.socialracine.com"],
   },
 });
