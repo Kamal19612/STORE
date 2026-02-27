@@ -1,0 +1,20 @@
+
+> frontend@0.0.0 dev
+> vite
+
+
+  VITE v8.0.0-beta.15  ready in 573 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+
+> frontend@0.0.0 dev
+> vite
+
+Port 5173 is in use, trying another one...
+
+  VITE v8.0.0-beta.15  ready in 521 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: use --host to expose
+Killed
