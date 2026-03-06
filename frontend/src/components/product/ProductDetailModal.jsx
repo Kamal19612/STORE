@@ -14,12 +14,15 @@ const ProductDetailModal = ({ product, onClose }) => {
 
   const isInCart = items.some((item) => item.id === product.id);
 
-  const handleAddToCart = () => {
-    if (!isInCart) {
+  const handleAddToCart = (e) => {
+    e.stopPropagation();
+    if (isInCart) {
+      const removeItem = useCartStore.getState().removeItem;
+      removeItem(product.id);
+    } else {
       addItem(product);
       toast.success("✓ Produit ajouté ! Vérifiez votre panier");
     }
-    onClose();
   };
 
   const handleOverlayClick = (e) => {
@@ -31,7 +34,7 @@ const ProductDetailModal = ({ product, onClose }) => {
   return (
     <div
       id="details-modal"
-      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 bg-black/50 z-100 flex items-center justify-center p-4 backdrop-blur-sm"
       onClick={handleOverlayClick}
     >
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -85,7 +88,7 @@ const ProductDetailModal = ({ product, onClose }) => {
                 >
                   Mode d'emploi
                 </h3>
-                <p className="text-gray-700">
+                <p className="text-gray-700 first-letter:uppercase lowercase leading-tight">
                   {product.description || "Non spécifié"}
                 </p>
               </div>
@@ -97,7 +100,7 @@ const ProductDetailModal = ({ product, onClose }) => {
                 >
                   Volume / Poids
                 </h3>
-                <p className="text-gray-700">
+                <p className="text-gray-700 first-letter:uppercase lowercase">
                   {product.volumeWeight || product.stock || "Non spécifié"}
                 </p>
               </div>
@@ -120,13 +123,26 @@ const ProductDetailModal = ({ product, onClose }) => {
               {product.available ? (
                 <button
                   onClick={handleAddToCart}
-                  className="w-full text-white py-3 rounded-lg font-bold transition"
-                  style={{
-                    backgroundColor: "var(--primary)",
-                    color: "var(--secondary)",
-                  }}
+                  className={`w-full text-white py-3 rounded-lg font-bold transition flex items-center justify-center ${isInCart ? "bg-green-500" : ""
+                    }`}
+                  style={
+                    !isInCart
+                      ? {
+                        backgroundColor: "var(--primary)",
+                        color: "var(--secondary)",
+                      }
+                      : { backgroundColor: "#10b981", color: "white" }
+                  }
                 >
-                  <i className="fas fa-cart-plus mr-2"></i>Ajouter au panier
+                  {isInCart ? (
+                    <>
+                      <i className="fas fa-check mr-2"></i>Produit au panier
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-cart-plus mr-2"></i>Ajouter au panier
+                    </>
+                  )}
                 </button>
               ) : (
                 <button

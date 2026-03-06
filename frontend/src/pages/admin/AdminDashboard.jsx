@@ -107,54 +107,54 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header Analytique */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b dark:border-white/10 pb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between border-b dark:border-white/10 pb-4 sm:pb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             Analyse de Performance
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
             Suivi en temps réel de votre activité commerciale
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-white dark:bg-secondary p-2 rounded-lg border border-gray-100 dark:border-white/5 shadow-sm text-sm font-medium">
-          <Calendar className="w-4 h-4 text-primary" />
-          <span className="dark:text-gray-300">Derniers 7 jours</span>
+        <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-secondary p-2 sm:p-3 rounded-lg border border-gray-100 dark:border-white/5 shadow-sm text-xs sm:text-sm font-medium shrink-0">
+          <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-primary shrink-0" />
+          <span className="dark:text-gray-300 whitespace-nowrap">Derniers 7 jours</span>
         </div>
       </div>
 
       {/* Grid de Cartes Analytiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {cards.map((card, idx) => (
           <motion.div
             key={idx}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="bg-white dark:bg-secondary rounded-xl p-6 shadow-sm border border-gray-100 dark:border-white/5 hover:border-primary/30 transition-colors"
+            className="bg-white dark:bg-secondary rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-white/5 hover:border-primary/30 transition-colors"
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-lg">
-                <card.icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            <div className="flex items-start justify-between mb-3 sm:mb-4 gap-2">
+              <div className="p-1.5 sm:p-2 bg-gray-50 dark:bg-white/5 rounded-lg shrink-0">
+                <card.icon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
               </div>
               <div
-                className={`flex items-center gap-0.5 text-xs font-bold ${card.isUp ? "text-emerald-500" : "text-red-500"}`}
+                className={`flex items-center gap-0.5 text-xs font-bold whitespace-nowrap ${card.isUp ? "text-emerald-500" : "text-red-500"}`}
               >
                 {card.isUp ? (
-                  <ArrowUpRight className="w-3 h-3" />
+                  <ArrowUpRight className="w-3 h-3 shrink-0" />
                 ) : (
-                  <ArrowDownRight className="w-3 h-3" />
+                  <ArrowDownRight className="w-3 h-3 shrink-0" />
                 )}
                 {card.trend}
               </div>
             </div>
 
-            <div className="space-y-1 mb-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            <div className="space-y-1 mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
                 {card.label}
               </p>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
                 {card.value}
               </h3>
             </div>
@@ -165,26 +165,26 @@ const AdminDashboard = () => {
       </div>
 
       {/* Détails et Activité */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {/* Progress Section */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          className="lg:col-span-2 bg-white dark:bg-secondary rounded-xl p-6 shadow-sm border border-gray-100 dark:border-white/5"
+          className="lg:col-span-2 bg-white dark:bg-secondary rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-white/5"
         >
-          <h4 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white mb-6">
-            <Activity className="w-5 h-5 text-primary" />
+          <h4 className="flex items-center gap-2 text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
+            <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
             État des Opérations
           </h4>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-500 dark:text-gray-400">
+                <div className="flex justify-between text-xs sm:text-sm mb-2 gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 line-clamp-1">
                     Commandes en attente
                   </span>
-                  <span className="font-bold dark:text-white">
+                  <span className="font-bold dark:text-white shrink-0">
                     {stats.pendingOrders}
                   </span>
                 </div>
@@ -199,11 +199,11 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-500 dark:text-gray-400">
+                <div className="flex justify-between text-xs sm:text-sm mb-2 gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 line-clamp-1">
                     Commandes confirmées
                   </span>
-                  <span className="font-bold dark:text-white">
+                  <span className="font-bold dark:text-white shrink-0">
                     {stats.confirmedOrders}
                   </span>
                 </div>
@@ -219,9 +219,9 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            <div className="bg-primary/5 dark:bg-primary/10 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-              <Users className="w-10 h-10 text-primary mb-3" />
-              <p className="text-2xl font-bold text-primary">
+            <div className="bg-primary/5 dark:bg-primary/10 rounded-lg sm:rounded-xl p-4 sm:p-6 flex flex-col items-center justify-center text-center">
+              <Users className="w-8 h-8 sm:w-10 sm:h-10 text-primary mb-2 sm:mb-3" />
+              <p className="text-xl sm:text-2xl font-bold text-primary">
                 {Math.round(
                   (stats.confirmedOrders / (stats.totalOrders || 1)) * 100,
                 )}
@@ -238,37 +238,37 @@ const AdminDashboard = () => {
         <motion.div
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white dark:bg-secondary rounded-xl p-6 shadow-sm border border-gray-100 dark:border-white/5"
+          className="bg-white dark:bg-secondary rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-white/5"
         >
-          <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-6">
+          <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
             Récapitulatif Rapide
           </h4>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-white/5">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-sm font-medium dark:text-gray-300">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-gray-50 dark:bg-white/5 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                <span className="text-xs sm:text-sm font-medium dark:text-gray-300">
                   Total Ventes
                 </span>
               </div>
-              <span className="text-sm font-bold dark:text-white">
+              <span className="text-xs sm:text-sm font-bold dark:text-white shrink-0">
                 {stats.totalOrders}
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-white/5">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-sm font-medium dark:text-gray-300">
+            <div className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-gray-50 dark:bg-white/5 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <span className="text-xs sm:text-sm font-medium dark:text-gray-300">
                   Stock Produits
                 </span>
               </div>
-              <span className="text-sm font-bold dark:text-white">
+              <span className="text-xs sm:text-sm font-bold dark:text-white shrink-0">
                 {stats.totalProducts}
               </span>
             </div>
-            <div className="mt-6">
-              <button className="w-full bg-secondary dark:bg-primary dark:text-secondary text-white font-bold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
-                <BarChart3 className="w-4 h-4" />
+            <div className="mt-4 sm:mt-6">
+              <button className="w-full bg-secondary dark:bg-primary dark:text-secondary text-white font-bold py-2 sm:py-3 px-3 rounded-lg sm:rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-sm sm:text-base">
+                <BarChart3 className="w-4 h-4 shrink-0" />
                 Rapport Détaillé
               </button>
             </div>

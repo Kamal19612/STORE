@@ -61,228 +61,149 @@ const AdminProductList = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">
-            Gestion des Produits
-          </h1>
-          <p className="text-gray-500">Gérez votre catalogue, stocks et prix</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="btn-secondary flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200"
-          >
-            <Upload className="h-5 w-5" />
-            Importer CSV
-          </button>
-          <Link
-            to="/admin/products/new"
-            className="btn-primary flex items-center justify-center gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            Nouveau Produit
-          </Link>
+    <div className="p-2 sm:p-4">
+      <div className="flex flex-col gap-3 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">
+              Gestion des Produits
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Gérez votre catalogue</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm py-2 px-3 rounded-lg"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Importer</span>
+            </button>
+            <Link
+              to="/admin/products/new"
+              className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-secondary text-xs sm:text-sm py-2 px-3 rounded-lg font-bold"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nouveau</span>
+            </Link>
+          </div>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+      {/* Search Bar */}
+      <div className="bg-white dark:bg-[#242021] p-3 rounded-lg border border-gray-100 dark:border-white/10 mb-4">
         <form onSubmit={handleSearch} className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Rechercher par nom..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            placeholder="Rechercher..."
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-[#1c191a] dark:text-white rounded-lg text-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </form>
       </div>
 
-      {/* Tableau */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-3">
+        {loading ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-[#242021] rounded-lg p-4 animate-pulse">
+              <div className="flex gap-3">
+                <div className="h-16 w-16 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                <div className="flex-1">
+                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+                  <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : products.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">Aucun produit trouvé.</div>
+        ) : (
+          products.map((product) => (
+            <div key={product.id} className="bg-white dark:bg-[#242021] rounded-lg shadow-sm border border-gray-100 dark:border-white/10 p-3">
+              <div className="flex gap-3">
+                <div className="h-16 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-[#1c191a] shrink-0">
+                  <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 dark:text-white text-sm truncate">{product.name}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{product.categoryName}</div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="font-bold text-primary dark:text-primary-400">{product.price.toLocaleString()} FCA</span>
+                    <div className="flex gap-1">
+                      <button onClick={() => navigate(`/admin/products/edit/${product.id}`)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded">
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDelete(product.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden lg:block bg-white dark:bg-[#242021] rounded-xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 dark:bg-[#1c191a] border-b border-gray-200 dark:border-white/10">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Image
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Nom
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Catégorie
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Prix
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
-                  Actions
-                </th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Image</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Nom</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Catégorie</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Prix</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Stock</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Statut</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                // Skeleton Loaders
-                [...Array(5)].map((_, index) => (
-                  <tr key={`skeleton-${index}`} className="animate-pulse">
-                    <td className="px-6 py-4">
-                      <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
-                      <div className="h-3 w-20 bg-gray-100 dark:bg-gray-800 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <div className="h-9 w-9 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-                        <div className="h-9 w-9 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : products.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="px-6 py-10 text-center text-gray-500"
-                  >
-                    Aucun produit trouvé.
+            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+              {products.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
+                  <td className="px-4 py-3">
+                    <div className="h-10 w-10 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white p-1">
+                      <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white text-sm">{product.name}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 hidden md:table-cell text-sm">{product.categoryName}</td>
+                  <td className="px-4 py-3 font-bold text-primary dark:text-primary-400 text-sm">{product.price.toLocaleString()} FCA</td>
+                  <td className="px-4 py-3 text-sm hidden sm:table-cell">
+                    {product.stock > 0 ? <span className="text-green-600 font-bold">{product.stock}</span> : <span className="text-red-500 font-bold">Rupture</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm hidden sm:table-cell">
+                    {product.available ? <span className="text-green-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Actif</span> : <span className="text-gray-400 flex items-center gap-1"><XCircle className="h-3 w-3" /> Inactif</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => navigate(`/admin/products/edit/${product.id}`)} className="p-2 text-gray-500 hover:text-blue-600 rounded-lg"><Edit className="h-4 w-4" /></button>
+                      <button onClick={() => handleDelete(product.id)} className="p-2 text-gray-500 hover:text-red-600 rounded-lg"><Trash2 className="h-4 w-4" /></button>
+                    </div>
                   </td>
                 </tr>
-              ) : (
-                products.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="h-12 w-12 rounded-lg border border-gray-200 overflow-hidden bg-white p-1">
-                        <img
-                          src={product.mainImage || "/placeholder.png"}
-                          alt={product.name}
-                          className="h-full w-full object-contain"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                      {product.name}
-                      {product.slug && (
-                        <div className="text-xs text-gray-400 font-normal">
-                          {product.slug}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
-                        {product.categoryName}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-primary">
-                      {product.price.toLocaleString()} FCFA
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                      {product.stock > 0 ? (
-                        <span className="text-green-600 dark:text-green-400 font-bold">
-                          {product.stock}
-                        </span>
-                      ) : (
-                        <span className="text-red-500 font-bold">Rupture</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {product.available ? (
-                        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
-                          <CheckCircle className="h-4 w-4" /> Actif
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-gray-400 text-sm font-medium">
-                          <XCircle className="h-4 w-4" /> Inactif
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() =>
-                            navigate(`/admin/products/edit/${product.id}`)
-                          }
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                          title="Modifier"
-                        >
-                          <Edit className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-
-        {/* Pagination Simple */}
-        <div className="bg-gray-50 dark:bg-[#242021] px-6 py-4 border-t border-gray-200 dark:border-white/10 flex items-center justify-between transition-colors">
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            Page {page + 1} sur {totalPages > 0 ? totalPages : 1}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Précédent
-            </button>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page >= totalPages - 1}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Suivant
-            </button>
-          </div>
-        </div>
       </div>
 
-      <ImportProductModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onSuccess={() => {
-          fetchProducts();
-          // Keep modal open to show result, or close?
-          // Usually keep open to show summary.
-          // My ImportProductModal handles summary display internally.
-        }}
-      />
+      {/* Pagination */}
+      {products.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 bg-white dark:bg-[#242021] p-3 rounded-lg border border-gray-100 dark:border-white/10">
+          <span className="text-xs sm:text-sm text-gray-500">Page {page + 1} sur {totalPages > 0 ? totalPages : 1}</span>
+          <div className="flex gap-2 self-end sm:self-auto">
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 border rounded-lg text-xs hover:bg-gray-50 disabled:opacity-50">Précédent</button>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1} className="px-3 py-1.5 border rounded-lg text-xs hover:bg-gray-50 disabled:opacity-50">Suivant</button>
+          </div>
+        </div>
+      )}
+
+      <ImportProductModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onSuccess={() => { fetchProducts(); }} />
     </div>
   );
 };
