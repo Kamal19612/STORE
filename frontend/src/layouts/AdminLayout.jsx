@@ -40,27 +40,28 @@ const AdminLayout = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative z-10 overflow-hidden">
         {/* Header */}
-        <header className="bg-white/80 dark:bg-[#242021]/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-white/5 px-4 lg:px-8 py-4 shrink-0 transition-colors duration-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <header className="bg-white/80 dark:bg-[#242021]/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-white/5 px-2 sm:px-4 lg:px-8 py-2 sm:py-3 lg:py-4 shrink-0 transition-colors duration-300 relative z-50">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 min-w-0">
               <button
+                type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 dark:text-white"
+                className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/10 dark:text-white shrink-0 flex items-center justify-center"
+                aria-label="Ouvrir le menu"
               >
-                <Menu className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                <Menu className="h-6 w-6 text-gray-700 dark:text-gray-200" />
               </button>
-              <h2 className="text-xl lg:text-2xl font-semibold text-gray-800 dark:text-white truncate font-brand-serif">
+              <h2 className="text-base sm:text-xl lg:text-2xl font-semibold text-gray-800 dark:text-white truncate font-brand-serif">
                 Tableau de bord
               </h2>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block whitespace-nowrap">
                 {new Date().toLocaleDateString("fr-FR", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
+                  weekday: "short",
                   day: "numeric",
+                  month: "short",
                 })}
               </span>
             </div>
@@ -68,7 +69,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content - Scrollable Area */}
-        <main className="flex-1 p-4 lg:p-8 overflow-y-auto scroll-smooth">
+        <main className="flex-1 p-2 sm:p-4 lg:p-6 overflow-y-auto overflow-x-hidden scroll-smooth">
           <Outlet />
         </main>
       </div>

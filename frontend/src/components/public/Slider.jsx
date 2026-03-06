@@ -38,7 +38,7 @@ const Slider = () => {
   if (slides.length === 0) return null;
 
   return (
-    <div className="relative w-full h-[400px] overflow-hidden slider-container bg-gray-100 mb-8">
+    <div className="relative w-full h-auto min-h-[200px] md:h-[400px] overflow-hidden slider-container bg-gray-100 mb-8 rounded-lg">
       {/* Slides */}
       {slides.map((slide, index) => (
         <div
@@ -50,8 +50,7 @@ const Slider = () => {
           <img
             src={slide.imageUrl}
             alt={slide.title || "Slide"}
-            className="w-full h-full object-cover"
-            style={{ maxHeight: "400px" }}
+            className="w-full h-full object-contain md:object-cover object-center"
           />
         </div>
       ))}

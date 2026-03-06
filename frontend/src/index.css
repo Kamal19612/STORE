@@ -12,22 +12,28 @@
 
   /* Custom animations */
   --animate-bounce-scale: bounce-scale 0.3s ease-in-out;
+
   @keyframes bounce-scale {
+
     0%,
     100% {
       transform: scale(1);
     }
+
     50% {
       transform: scale(1.2);
     }
   }
 
   --animate-pulse-fast: pulse-fast 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
   @keyframes pulse-fast {
+
     0%,
     100% {
       opacity: 1;
     }
+
     50% {
       opacity: 0.5;
     }
@@ -63,7 +69,8 @@ body {
 }
 
 :root.dark body {
-  background-color: #1c191a; /* Darker Charbon for depth */
+  background-color: #1c191a;
+  /* Darker Charbon for depth */
   color: #f5f5f5;
 }
 
@@ -117,6 +124,7 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -140,14 +148,16 @@ body {
 
 /* Tables Dark Mode */
 :root.dark table {
-  background-color: #242021; /* Dark brand color */
+  background-color: #242021;
+  /* Dark brand color */
   border-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
 :root.dark thead {
   background-color: #1c191a;
-  color: #f5ad41; /* Gold Accent */
+  color: #f5ad41;
+  /* Gold Accent */
 }
 
 :root.dark th,
@@ -218,59 +228,138 @@ body {
 :root.dark .Toastify__close-button {
   color: #f5f5f5 !important;
 }
+
 /* ============================================
-   MOBILE OPTIMIZATIONS (max-width: 480px)
+   TEXT SLIDER STYLES (Mobile Version)
+   ============================================ */
+
+.text-slider-indicator {
+  transition: all 0.3s ease;
+}
+
+.text-slider-indicator.active {
+  background-color: var(--primary);
+  width: 2rem;
+  border-radius: 9999px;
+}
+
+/* Dark mode support for TextSlider */
+:root.dark .text-slider-container {
+  background: linear-gradient(135deg, rgba(245, 173, 65, 0.05) 0%, rgba(245, 173, 65, 0.02) 100%);
+  border-color: rgba(245, 173, 65, 0.15);
+}
+
+
+/* ============================================
+   TABLET & MOBILE OPTIMIZATIONS (max-width: 768px)
    Override desktop styles for small screens
    ============================================ */
 
-@media (max-width: 480px) {
-  /* Carousel - Reduce height for mobile */
+@media (max-width: 768px) {
+
+  /* ========== CAROUSEL FIXES ========== */
+  /* Replica exacte du style desktop mais avec hauteur adaptive pour mobile */
   .slider-container {
-    height: 200px !important;
-    margin-bottom: 1rem !important;
-  }
-
-  .slider-container img {
-    object-fit: cover !important;
     width: 100% !important;
-    height: 100% !important;
-  }
-
-  /* Product Grid - 2 columns instead of 1 */
-  @supports (display: grid) {
-    .grid.grid-cols-1.lg\:grid-cols-4 {
-      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-      gap: 0.75rem !important;
-    }
-  }
-
-  /* Product Cards - Optimize spacing */
-  .product-card {
-    padding: 0 !important;
+    height: auto !important;
+    aspect-ratio: auto !important;
+    min-height: 200px !important;
+    max-height: 60vh !important;
+    overflow: hidden !important;
+    margin-bottom: 1rem !important;
+    background-color: #f3f4f6 !important;
     border-radius: 0.5rem !important;
   }
 
+  /* Force override du h-[400px] Tailwind */
+  div[className*="slider-container"] {
+    height: auto !important;
+    aspect-ratio: auto !important;
+    min-height: 200px !important;
+    max-height: 60vh !important;
+  }
+
+  .slider-container img,
+  .slider-container div img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
+    display: block !important;
+    background-color: transparent !important;
+  }
+
+  /* ========== PRODUCT GRID FIXES ========== */
+  /* Product Grid - Responsive columns based on screen width */
+  @supports (display: grid) {
+    .grid.grid-cols-1.lg\:grid-cols-4 {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+      gap: 0.75rem !important;
+      grid-auto-flow: dense;
+    }
+  }
+
+  /* Alternative grid for sm:grid-cols-2 breakpoint */
+  @supports (display: grid) {
+    .grid.sm\:grid-cols-2.lg\:grid-cols-4 {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+      gap: 0.75rem !important;
+      grid-auto-flow: dense;
+    }
+  }
+
+  /* ========== PRODUCT CARD IMAGE FIXES ========== */
+  /* Product Cards - Optimize spacing */
+  .product-card {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Product Image Container - Consistent aspect ratio */
+  .product-card>div:first-child {
+    aspect-ratio: 1 / 1 !important;
+    height: auto !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Product Image - Centered and fully visible */
   .product-card img {
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
     object-fit: cover !important;
-    aspect-ratio: 1/1 !important;
+    object-position: center !important;
+    display: block !important;
+  }
+
+  /* Product Info Container */
+  .product-card>div:last-child {
+    padding: 0.5rem !important;
+    flex-grow: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
   }
 
   .product-card p {
-    font-size: 0.75rem !important;
-    padding: 0.5rem !important;
+    font-size: 0.7rem !important;
+    padding: 0 !important;
+    margin: 0.25rem 0 !important;
   }
 
   .product-card h3 {
-    font-size: 0.875rem !important;
+    font-size: 0.8rem !important;
+    line-height: 1.2 !important;
+    margin: 0.25rem 0 !important;
   }
 
   /* Buttons - Ensure touch-friendly size */
   .product-card button {
-    min-height: 44px !important;
-    min-width: 44px !important;
+    min-height: 40px !important;
+    min-width: 40px !important;
     padding: 0.5rem !important;
+    font-size: 0.8rem !important;
   }
 
   /* Page padding - Reduce for mobile */
@@ -279,13 +368,68 @@ body {
     padding-right: 0.5rem !important;
   }
 
-  /* Gap between sections */
-  .mb-6 {
-    margin-bottom: 1rem !important;
+  /* Admin Grids - Force single column on mobile */
+  .grid.md\:grid-cols-2,
+  .grid.md\:grid-cols-3,
+  .grid.lg\:grid-cols-3 {
+    grid-template-columns: 1fr !important;
   }
 
+  /* Reduce gaps for mobile grids */
   .gap-6 {
     gap: 1rem !important;
+  }
+
+  .gap-8 {
+    gap: 1rem !important;
+  }
+
+  /* Admin table - Improve mobile responsiveness */
+  table {
+    font-size: 0.75rem !important;
+  }
+
+  table th,
+  table td {
+    padding: 0.5rem !important;
+  }
+
+  /* Hide non-essential columns on mobile */
+  table th:nth-child(3),
+  table td:nth-child(3),
+  table th:nth-child(5),
+  table td:nth-child(5) {
+    display: none !important;
+  }
+
+  /* Form inputs - better mobile sizing */
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 44px !important;
+  }
+
+  /* Generic cards - prevent image overflow (exclude slider images) */
+  .rounded-lg>img,
+  .bg-white img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Exclude slider container images from generic overflow rule */
+  .overflow-hidden:not(.slider-container) img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .mb-6 {
+    margin-bottom: 1rem !important;
   }
 
   /* Hide sidebar on mobile (already hidden with lg:hidden) */
@@ -296,5 +440,50 @@ body {
   /* Title styling for mobile */
   h1 {
     font-size: 1.875rem !important;
+  }
+
+  /* Generic cards - prevent image overflow */
+  .rounded-lg>img,
+  .overflow-hidden img,
+  .bg-white img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Ensure flex containers stack properly on mobile */
+  .flex.flex-col {
+    width: 100% !important;
+  }
+
+  /* Header mobile optimization */
+  header {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  /* Sidebar toggle and header spacing */
+  .px-4 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+}
+
+/* ============================================
+   DESKTOP OPTIMIZATIONS (min-width: 769px)
+   Restore full desktop styles
+   ============================================ */
+
+@media (min-width: 769px) {
+
+  /* Carousel - Desktop styles restored */
+  .slider-container {
+    height: 400px !important;
+  }
+
+  /* Product Cards - Desktop image height */
+  .product-card>div:first-child {
+    height: 160px !important;
+    aspect-ratio: auto !important;
   }
 }

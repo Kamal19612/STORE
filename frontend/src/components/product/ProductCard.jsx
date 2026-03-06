@@ -65,7 +65,7 @@ const ProductCard = ({ product }) => {
       <div className="product-card bg-white rounded-lg shadow-md overflow-hidden relative group hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
         {/* Product Image Zone */}
         <div
-          className="relative h-40 bg-gray-200 cursor-pointer"
+          className="relative h-36 bg-gray-200 cursor-pointer rounded-lg overflow-hidden"
           onClick={handleImageClick}
         >
           {product.mainImage ? (
@@ -112,30 +112,33 @@ const ProductCard = ({ product }) => {
         </div>
 
         {/* Product Info */}
-        <div className="p-3">
+        <div className="p-2">
           <div className="mb-1">
             <span
-              className="text-xs font-semibold"
-              style={{ color: "var(--primary)" }}
+              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1"
+              style={{
+                backgroundColor: "rgba(var(--primary-rgb), 0.15)",
+                color: "var(--primary)",
+              }}
             >
               {product.categoryName || "Catégorie"}
             </span>
           </div>
 
           <h3
-            className="text-base font-bold mb-1 line-clamp-2 leading-tight"
+            className="text-sm font-bold mb-1 line-clamp-1 leading-tight first-letter:uppercase lowercase"
             style={{ color: "var(--secondary)" }}
           >
             {product.name}
           </h3>
 
-          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+          <p className="text-[10px] text-gray-600 mb-2 line-clamp-2 first-letter:uppercase lowercase leading-[1.1]">
             {product.description || "Aucune description disponible."}
           </p>
 
           <div className="flex items-center justify-between mt-2">
             <span
-              className="text-lg font-bold"
+              className="text-base font-bold"
               style={{ color: "var(--primary)" }}
             >
               {formatPrice(product.price)}
