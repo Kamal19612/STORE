@@ -2,6 +2,15 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@keyframes whatsapp-blink {
+  0%, 49% { opacity: 1;    box-shadow: 0 0 12px 4px #25D36680; }
+  50%, 100% { opacity: 0.25; box-shadow: none; }
+}
+
+.btn-whatsapp-blink {
+  animation: whatsapp-blink 0.9s step-end infinite;
+}
+
 @theme {
   /* Custom color palette - mapped to :root variables */
   --color-primary: var(--primary);
@@ -12,7 +21,6 @@
 
   /* Custom animations */
   --animate-bounce-scale: bounce-scale 0.3s ease-in-out;
-
   @keyframes bounce-scale {
 
     0%,
@@ -218,6 +226,27 @@ body {
   color: #999 !important;
 }
 
+/* Responsive Toastify — mobile */
+@media (max-width: 480px) {
+  .Toastify__toast-container {
+    width: calc(100% - 32px) !important;
+    left: 16px !important;
+    right: 16px !important;
+    top: 72px !important;
+    padding: 0 !important;
+  }
+
+  .Toastify__toast-container--top-right {
+    top: 72px !important;
+    right: 16px !important;
+  }
+
+  .Toastify__toast {
+    margin-bottom: 8px !important;
+    border-radius: 10px !important;
+  }
+}
+
 /* Dark mode overrides for Toastify */
 :root.dark .Toastify__toast {
   background-color: #242021 !important;
@@ -368,10 +397,9 @@ body {
     padding-right: 0.5rem !important;
   }
 
-  /* Admin Grids - Force single column on mobile */
+  /* Admin Grids - Force single column on mobile (forms/settings only) */
   .grid.md\:grid-cols-2,
-  .grid.md\:grid-cols-3,
-  .grid.lg\:grid-cols-3 {
+  .grid.md\:grid-cols-3 {
     grid-template-columns: 1fr !important;
   }
 
@@ -413,16 +441,10 @@ body {
     min-height: 44px !important;
   }
 
-  /* Generic cards - prevent image overflow (exclude slider images) */
+  /* Generic cards - prevent image overflow (exclude slider + sidebar images) */
   .rounded-lg>img,
-  .bg-white img {
-    max-width: 100% !important;
-    height: auto !important;
-    display: block !important;
-  }
-
-  /* Exclude slider container images from generic overflow rule */
-  .overflow-hidden:not(.slider-container) img {
+  .overflow-hidden:not(.slider-container):not(aside) img,
+  .product-card img {
     max-width: 100% !important;
     height: auto !important;
     display: block !important;
@@ -430,11 +452,6 @@ body {
 
   .mb-6 {
     margin-bottom: 1rem !important;
-  }
-
-  /* Hide sidebar on mobile (already hidden with lg:hidden) */
-  aside {
-    display: none !important;
   }
 
   /* Title styling for mobile */
@@ -451,8 +468,8 @@ body {
     display: block !important;
   }
 
-  /* Ensure flex containers stack properly on mobile */
-  .flex.flex-col {
+  /* Ensure flex containers stack properly on mobile (exclude aside/sidebar) */
+  .flex.flex-col:not(aside) {
     width: 100% !important;
   }
 

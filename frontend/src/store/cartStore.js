@@ -5,6 +5,7 @@ const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
+      _hydrated: false,
 
       addItem: (product) => {
         const { items } = get();
@@ -53,7 +54,10 @@ const useCartStore = create(
       },
     }),
     {
-      name: "sucre-store-cart", // Nom pour le localStorage
+      name: "sucre-store-cart",
+      onRehydrateStorage: () => () => {
+        useCartStore.setState({ _hydrated: true });
+      },
     },
   ),
 );

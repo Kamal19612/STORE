@@ -15,7 +15,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-hidden">
+    <div className="fixed inset-0 z-100 overflow-hidden">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -28,8 +28,8 @@ const CartDrawer = ({ isOpen, onClose }) => {
           <div className="px-4 py-6 bg-secondary text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-6 w-6 text-primary" />
-              <h2 className="text-xl font-bold uppercase tracking-tight">
-                Mon Panier ({itemCount})
+              <h2 className="text-xl font-bold tracking-tight">
+                Mon panier ({itemCount})
               </h2>
             </div>
             <button
@@ -63,9 +63,9 @@ const CartDrawer = ({ isOpen, onClose }) => {
                   key={item.id}
                   className="flex gap-4 p-3 bg-gray-50 rounded-xl border border-gray-100 group"
                 >
-                  <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-white p-2 border border-gray-100">
+                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-white p-2 border border-gray-100">
                     <img
-                      src={item.mainImage || "https://via.placeholder.com/100"}
+                      src={item.mainImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3C/svg%3E"}
                       alt={item.name}
                       className="h-full w-full object-contain"
                     />
@@ -136,7 +136,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                   onClose();
                   navigate("/checkout");
                 }}
-                className="btn-primary w-full py-3 text-lg font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 uppercase tracking-wide"
+                className="btn-primary w-full py-3 text-lg font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 tracking-wide"
               >
                 Passer la commande
               </button>

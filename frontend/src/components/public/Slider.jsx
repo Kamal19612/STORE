@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import sliderService from "../../services/sliderService";
 
 const Slider = () => {
   const [slides, setSlides] = useState([]);
-  const [current, setCurrent] = useState(0);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     const fetchSlides = async () => {
@@ -20,73 +19,109 @@ const Slider = () => {
   }, []);
 
   useEffect(() => {
-    if (slides.length <= 1) return;
+    const totalSlides = slides.length;
+    if (totalSlides <= 1) return;
+    
+    // Défilement automatique toutes les 5 secondes
     const interval = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % slides.length);
-    }, 5000); // 5 secondes
+      setCurrentSlide((prev) => (prev + 1) % totalSlides);
+    }, 5000);
     return () => clearInterval(interval);
   }, [slides.length]);
 
-  const prevSlide = () => {
-    setCurrent((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
-  };
-
-  const nextSlide = () => {
-    setCurrent((prev) => (prev + 1) % slides.length);
+  const showSlide = (index) => {
+    const totalSlides = slides.length;
+    // Calculer le nouvel index avec modulo pour la boucle infinie
+    setCurrentSlide((index + totalSlides) % totalSlides);
   };
 
   if (slides.length === 0) return null;
 
   return (
-    <div className="relative w-full h-auto min-h-[200px] md:h-[400px] overflow-hidden slider-container bg-gray-100 mb-8 rounded-lg">
-      {/* Slides */}
-      {slides.map((slide, index) => (
-        <div
-          key={slide.id}
-          className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-            index === current ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <img
-            src={slide.imageUrl}
-            alt={slide.title || "Slide"}
-            className="w-full h-full object-contain md:object-cover object-center"
-          />
+    <>
+      <style>{`
+        /* CSS Personnalisé Requis - Isolé pour éviter les conflits avec index.css */
+        .hero-carousel { position: relative; width: 100%; }
+        .hero-wrapper { position: relative; width: 100%; display: flex; align-items: center; }
+        
+        .hero-slide { display: none; width: 100%; }
+        .hero-slide.active { display: block; animation: fadeInHero 0.5s ease-in-out; }
+
+        @keyframes fadeInHero { 
+            from { opacity: 0; } 
+            to { opacity: 1; } 
+        }
+
+        .hero-prev, .hero-next { cursor: pointer; }
+        .hero-dot { cursor: pointer; transition: background-color 0.3s; }
+
+        .hero-slide img {
+            display: block; /* Supprime l'espace/bande blanche sous l'image */
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            border-radius: 15px; /* Arrondi exact de 15px */
+        }
+
+        @media (max-width: 768px) {
+            .hero-prev, .hero-next { padding: 10px; }
+        }
+      `}</style>
+
+      {/* Structure HTML Attendue (adaptée à React) */}
+      <div className="hero-carousel max-w-full mx-auto overflow-hidden rounded-[15px] shadow-md relative mb-8">
+        <div className="hero-wrapper">
+          
+          {/* Slides */}
+          {slides.map((slide, index) => (
+            <a 
+              href={`#promo${index}`} 
+              key={slide.id} 
+              className={`hero-slide ${index === currentSlide ? "active" : ""}`}
+            >
+              <img src={slide.imageUrl} alt={slide.title || `Image ${index + 1}`} />
+            </a>
+          ))}
+
+          {/* Contrôles (Uniquement si > 1 slide) */}
+          {slides.length > 1 && (
+            <>
+              {/* Flèches de Navigation */}
+              <button 
+                onClick={(e) => { e.preventDefault(); showSlide(currentSlide - 1); }}
+                className="hero-prev absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-75 transition-colors"
+                aria-label="Précédent"
+              >
+                <i className="fas fa-chevron-left"></i>
+              </button>
+              
+              <button 
+                onClick={(e) => { e.preventDefault(); showSlide(currentSlide + 1); }}
+                className="hero-next absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-75 transition-colors"
+                aria-label="Suivant"
+              >
+                <i className="fas fa-chevron-right"></i>
+              </button>
+
+              {/* Points de Navigation (Dots) */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-10">
+                {slides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => { e.preventDefault(); showSlide(index); }}
+                    className={`hero-dot w-3 h-3 rounded-full ${
+                      index === currentSlide ? 'bg-white' : 'bg-white bg-opacity-50'
+                    }`}
+                    aria-label={`Aller au slide ${index + 1}`}
+                  ></button>
+                ))}
+              </div>
+            </>
+          )}
+          
         </div>
-      ))}
-
-      {/* Controls (Only if > 1 slide) */}
-      {/* Controls (Only if > 1 slide) */}
-      {slides.length > 1 && (
-        <>
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition z-10"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition z-10"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-
-          {/* Indicators */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrent(index)}
-                className={`w-3 h-3 rounded-full transition-all ${
-                  index === current ? "bg-white" : "bg-white/50"
-                }`}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+      </div>
+    </>
   );
 };
 

@@ -4,7 +4,6 @@ import {
   Upload,
   Plus,
   Save,
-  GripVertical,
   CheckCircle,
   XCircle,
 } from "lucide-react";
@@ -136,10 +135,10 @@ const AdminSlider = () => {
   /// For now, we allow editing the "Order" number directly.
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 mb-5 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">
             Gestion Carrousel
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
@@ -176,7 +175,7 @@ const AdminSlider = () => {
       </div>
 
       {isAdding && (
-        <div className="bg-white dark:bg-[#242021] p-6 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 mb-8 animate-fade-in transition-colors">
+        <div className="bg-white dark:bg-[#242021] p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 mb-6 sm:mb-8 animate-fade-in transition-colors">
           <h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">
             Nouvelle Diapositive
           </h3>
@@ -305,10 +304,10 @@ const AdminSlider = () => {
           slides.map((slide) => (
             <div
               key={slide.id}
-              className="bg-white dark:bg-[#242021] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 flex flex-col md:flex-row items-center gap-6 transition-colors"
+              className="bg-white dark:bg-[#242021] p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 flex flex-row items-center gap-3 sm:gap-4 transition-colors"
             >
               {/* Image Preview */}
-              <div className="h-24 w-40 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-white/10">
+              <div className="h-16 w-24 sm:h-20 sm:w-32 bg-gray-100 dark:bg-white/5 rounded-lg overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
                 <img
                   src={slide.imageUrl}
                   alt={slide.title}
@@ -317,14 +316,14 @@ const AdminSlider = () => {
               </div>
 
               {/* Infos */}
-              <div className="flex-1">
-                <h4 className="font-bold text-gray-800 dark:text-white">
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-gray-800 dark:text-white text-sm sm:text-base truncate">
                   {slide.title || "Sans titre"}
                 </h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {slide.imageUrl}
                 </p>
-                <div className="mt-2 flex items-center gap-4 text-sm">
+                <div className="mt-1.5 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
                   <span className="text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/10 px-2 py-1 rounded">
                     Ordre: {slide.displayOrder}
                   </span>

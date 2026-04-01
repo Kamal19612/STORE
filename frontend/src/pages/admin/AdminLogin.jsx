@@ -1,44 +1,46 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import useAuthStore from "../../store/authStore";
 import authService from "../../services/authService";
-import { LogOut, LayoutDashboard, User, ShieldCheck } from "lucide-react";
+import { triggerInstallPrompt, isInstallAvailable } from "../../hooks/useInstallPWA";
 
 /**
  * Page de connexion pour les administrateurs
  */
 const AdminLogin = () => {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ username: "", password: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showLogin, setShowLogin] = useState(false); // Pour forcer l'affichage du login même si connecté
+  const [installable, setInstallable] = useState(isInstallAvailable);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  useEffect(() => {
+    const onInstallable = () => setInstallable(true);
+    const onInstalled = () => setInstallable(false);
+    window.addEventListener("pwa:installable", onInstallable);
+    window.addEventListener("pwa:installed", onInstalled);
+    return () => {
+      window.removeEventListener("pwa:installable", onInstallable);
+      window.removeEventListener("pwa:installed", onInstalled);
+    };
+  }, []);
 
   const navigate = useNavigate();
-  const { login, logout, isAuthenticated, user } = useAuthStore();
+  const { login, isAuthenticated, user } = useAuthStore();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (isAuthenticated && user && !showLogin) {
-      const target =
-        user.role === "DELIVERY_AGENT"
-          ? "/delivery/dashboard"
-          : "/admin/dashboard";
-      navigate(target, { replace: true });
-    }
-  }, [isAuthenticated, user, showLogin, navigate]);
+  // Redirect synchronously if already logged in (no useEffect = no double-navigate)
+  if (isAuthenticated && user) {
+    const target =
+      user.role === "DELIVERY_AGENT"
+        ? "/delivery/dashboard"
+        : "/admin/dashboard";
+    return <Navigate to={target} replace />;
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleLogoutAndSwitch = () => {
-    logout();
-    setFormData({ username: "", password: "" });
-    setShowLogin(true); // Affiche le formulaire
   };
 
   const handleSubmit = async (e) => {
@@ -82,24 +84,23 @@ const AdminLogin = () => {
     }
   };
 
-  // --- Rendu : Formulaire de Connexion ---
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-yellow-50">
-      <div className="w-full max-w-md px-6">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
-          <div className="text-center mb-8">
+    <div className="min-h-svh flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-yellow-50 px-4 py-8 overflow-y-auto">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-gray-100">
+          <div className="text-center mb-6 sm:mb-8">
             <img
               src="/logo-sucre.png"
               alt="Sucre Store"
-              className="h-20 w-auto mx-auto mb-4"
+              className="h-16 w-16 object-contain mx-auto mb-3 rounded-full"
             />
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1">
               SUCRE STORE
             </h1>
-            <p className="text-gray-600">Espace Administrateur</p>
+            <p className="text-gray-600 text-sm">Espace Administrateur</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6" autoComplete="on">
             <div>
               <label
                 htmlFor="username"
@@ -114,7 +115,7 @@ const AdminLogin = () => {
                 value={formData.username}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
-                placeholder="admin@example.com"
+                placeholder="admin"
                 required
                 autoComplete="username"
               />
@@ -143,43 +144,21 @@ const AdminLogin = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`
-                w-full py-3 px-4 rounded-lg font-semibold text-white
-                bg-gradient-to-r from-yellow-400 to-amber-500
-                hover:from-yellow-500 hover:to-amber-600
-                transform hover:scale-[1.02] active:scale-[0.98]
-                transition-all duration-200 shadow-lg
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
-                flex items-center justify-center
-              `}
+              className="w-full py-3 px-4 rounded-lg font-semibold text-gray-900 bg-amber-400 bg-gradient-to-r from-yellow-400 to-amber-500 hover:bg-amber-500 active:bg-amber-600 active:opacity-90 transition-colors duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isSubmitting ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Connexion en cours...
-                </>
-              ) : (
-                "Se connecter"
-              )}
+              {/* Structure DOM stable : toujours présents, visibilité par CSS
+                  évite le crash removeChild causé par les extensions navigateur */}
+              <svg
+                className={`h-5 w-5 text-gray-900 shrink-0 ${isSubmitting ? "animate-spin" : "hidden"}`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span>{isSubmitting ? "Connexion en cours..." : "Se connecter"}</span>
             </button>
           </form>
 
@@ -188,6 +167,31 @@ const AdminLogin = () => {
               Accès réservé aux administrateurs uniquement
             </p>
           </div>
+
+          {!isStandalone && (
+            <div className="mt-4">
+              {installable ? (
+                <button
+                  type="button"
+                  onClick={triggerInstallPrompt}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors text-sm font-medium"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Installer l'application
+                </button>
+              ) : isIOS ? (
+                <p className="text-center text-xs text-gray-400">
+                  Pour installer : touchez <strong>Partager</strong> puis <strong>Sur l'écran d'accueil</strong>
+                </p>
+              ) : (
+                <p className="text-center text-xs text-gray-400">
+                  Pour installer : menu du navigateur <strong>⋮</strong> → <strong>Ajouter à l'écran d'accueil</strong>
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-4 text-center text-xs text-gray-500">

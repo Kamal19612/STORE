@@ -64,6 +64,15 @@ public class ProductController {
     }
 
     /**
+     * GET /api/products/top : Top 10 produits les plus commandés (pour le carrousel).
+     */
+    @GetMapping("/products/top")
+    public ResponseEntity<List<ProductResponse>> getTopProducts(
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(productService.getTopOrderedProducts(limit));
+    }
+
+    /**
      * GET /api/products/{slug} : Détail d'un produit.
      */
     @GetMapping("/products/{slug}")

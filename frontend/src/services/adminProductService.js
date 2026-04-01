@@ -46,6 +46,11 @@ const adminProductService = {
     await api.delete(`/admin/products/${id}`);
   },
 
+  deleteAllProducts: async () => {
+    const response = await api.delete("/admin/products");
+    return response.data;
+  },
+
   getProductById: async (id) => {
     const response = await api.get(`/admin/products/${id}`);
     return response.data;
@@ -62,9 +67,20 @@ const adminProductService = {
   importFromGoogleSheets: async (spreadsheetId) => {
     let url = "/admin/products/import-google-sheets";
     if (spreadsheetId) {
-      url += `?spreadsheetId=${spreadsheetId}`;
+      url += `?spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
     }
     const response = await api.post(url);
+    return response.data;
+  },
+
+  syncGoogleSheet: async () => {
+    // Utilise l'endpoint synchronisé (sans ID, prend celui en DB)
+    const response = await api.post("/admin/products/google-sheets-sync");
+    return response.data;
+  },
+
+  getSheetConfig: async () => {
+    const response = await api.get("/admin/products/sheet-config");
     return response.data;
   },
 };

@@ -43,104 +43,40 @@ const AdminProductForm = () => {
       try {
         const data = await productService.getCategories();
         setCategories(data);
-        setCategories(data);
-        // Suppression de l'auto-select pour laisser le champ vide ou libre
-        // if (data.length > 0 && !isEditMode) { ... }
       } catch (error) {
         toast.error("Erreur chargement catégories");
       }
     };
 
     loadCategories();
+  }, []);
 
-    // Si mode édition, charger le produit
-    if (isEditMode) {
-      const loadProduct = async () => {
-        try {
-          setLoading(true);
-          const product = await adminProductService.getProductById(id);
-
-          // Mapper les données
-          // Note: Le backend renvoie categoryName et categorySlug, mais pas l'ID directement dans la réponse publique standard ?
-          // Vérifions ProductResponse.java : ah, il a categoryName et categorySlug.
-          // Il manque categoryId dans ProductResponse ! C'est un problème pour l'édition.
-          // Je vais devoir trouver l'ID de la catégorie via son nom ou modifier le backend.
-          // Pour l'instant, faisons une recherche simple coté client dans la liste des catégories chargée.
-
-          const category = categories.find(
-            (c) => c.name === product.categoryName,
-          ); // Risqué si doublons...
-
-          setFormData({
-            name: product.name,
-            slug: product.slug,
-            slug: product.slug,
-            categoryId: category ? category.id : "",
-            categoryName: product.categoryName || "", // Pre-fill name
-            price: product.price,
-            oldPrice: product.oldPrice || "",
-            stock: product.available ? 99 : 0, // ATTENTION: ProductResponse n'a pas 'stockQuantity' exact pour le public ?? VERIFIER ProductResponse.java
-            // ProductResponse a 'available' booléen, mais pas le stock exact pour le public (logique).
-            // MAIS AdminProductService utilise le même DTO ProductResponse.
-            // C'est une limite actuelle. Le backend Admin devrait renvoyer le stock exact.
-            // Supposons que j'ai ajouté stock dans ProductResponse ou que je vais le faire.
-            // ProductResponse.java a t'il stock ?
-            // Regardons ProductService mapToResponse... il mappe available = stock > 0.
-            // Il ne mappe PAS le stock exact.
-            // JE DOIS MODIFIER ProductResponse pour inclure stockQuantity (pour l'admin au moins) et categoryId.
-            shortDescription: product.shortDescription,
-            description: "", // ProductResponse public a pas full description ? Si, check mapToResponse.
-            imageUrl: product.mainImage,
-            active: product.available,
-          });
-
-          setPreviewApiImage(product.mainImage);
-        } catch (error) {
-          console.error(error);
-          toast.error("Erreur chargement produit");
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      // Petit délai pour attendre que catégories soient là (hacky, mieux vaut Promise.all)
-      if (categories.length === 0) {
-        // Relancer après loadCategories ? Non, on va le faire dans un useEffect séparé qui dépend de categories
-      } else {
-        loadProduct();
-      }
-    }
-  }, [id, isEditMode]); // Dependance categories manquante ici pour éviter boucle, on gère autrement.
-
-  // Effet pour charger le produit une fois les catégories là
+  // Charger le produit une fois les catégories disponibles
   useEffect(() => {
-    if (isEditMode && categories.length > 0 && !formData.categoryId) {
-      adminProductService
-        .getProductById(id)
-        .then((product) => {
-          const category = categories.find(
-            (c) => c.name === product.categoryName,
-          );
-          setFormData((prev) => ({
-            ...prev,
-            name: product.name,
-            slug: product.slug,
-            name: product.name,
-            slug: product.slug,
-            categoryId: category ? category.id : "",
-            categoryName: product.categoryName || "",
-            price: product.price,
-            oldPrice: product.oldPrice,
-            stock: 10, // Valeur par défaut car non dispo dans DTO public
-            shortDescription: product.shortDescription,
-            description: "",
-            imageUrl: product.mainImage,
-            active: product.available,
-          }));
-          setPreviewApiImage(product.mainImage);
-        })
-        .catch((e) => console.error(e));
-    }
+    if (!isEditMode || categories.length === 0) return;
+
+    adminProductService
+      .getProductById(id)
+      .then((product) => {
+        setFormData({
+          name: product.name,
+          slug: product.slug,
+          categoryId: product.categoryId || "",
+          categoryName: product.categoryName || "",
+          price: product.price,
+          oldPrice: product.oldPrice || "",
+          stock: product.stock ?? 0,
+          shortDescription: product.shortDescription || "",
+          description: product.description || "",
+          imageUrl: product.mainImage || "",
+          active: product.active,
+        });
+        setPreviewApiImage(product.mainImage);
+      })
+      .catch((e) => {
+        console.error(e);
+        toast.error("Erreur chargement produit");
+      });
   }, [categories, isEditMode, id]);
 
   const handleChange = (e) => {
@@ -198,9 +134,6 @@ const AdminProductForm = () => {
         stock: parseInt(formData.stock),
         price: parseFloat(formData.price),
         oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : null,
-        price: parseFloat(formData.price),
-        oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : null,
-        // Envoi du nom au lieu de l'ID (le backend gérera)
         categoryName: formData.categoryName,
         categoryId: null, // On laisse le backend résoudre via le nom
         imageFile, // Sera extrait par le service
@@ -223,8 +156,8 @@ const AdminProductForm = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center gap-4 mb-8">
+    <div className="max-w-4xl mx-auto p-3 sm:p-6">
+      <div className="flex items-center gap-3 sm:gap-4 mb-5 sm:mb-8">
         <Link
           to="/admin/products"
           className="p-2 bg-white dark:bg-[#242021] rounded-full border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
@@ -241,8 +174,8 @@ const AdminProductForm = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="bg-white dark:bg-[#242021] p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 space-y-6 transition-colors">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-8">
+        <div className="bg-white dark:bg-[#242021] p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 space-y-6 transition-colors">
           {/* Informations de base */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -451,7 +384,7 @@ const AdminProductForm = () => {
         </div>
 
         {/* Boutons actions */}
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4">
           <button
             type="button"
             onClick={() => navigate("/admin/products")}
@@ -462,7 +395,7 @@ const AdminProductForm = () => {
           <button
             type="submit"
             disabled={loading}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 transition-all flex items-center gap-2"
+            className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
           >
             {loading && (
               <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />

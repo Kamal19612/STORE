@@ -17,5 +17,10 @@ export default defineConfig({
       },
     },
     allowedHosts: ["sucrestore.socialracine.com"],
+    hmr: {
+      host: "sucrestore.socialracine.com",
+      protocol: "wss",
+      clientPort: 443,
+    },
   },
 });

@@ -3,21 +3,34 @@ import { motion, AnimatePresence } from "framer-motion";
 import productService from "../../services/productService";
 import ProductCard from "../../components/product/ProductCard";
 import Slider from "../../components/public/Slider";
+import ProductCarouselStrip from "../../components/public/ProductCarouselStrip";
 import CategoryBar from "../../components/product/CategoryBar";
 import FilterIcon from "../../assets/filter-icon.png";
 
 const Home = () => {
   const [products, setProducts] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const data = await productService.getAllProducts(0, 100); // Fetch more for client-side filtering
+        const [data, top] = await Promise.all([
+          productService.getAllProducts(0, 100),
+          productService.getTopProducts(10),
+        ]);
         setProducts(data.content || []);
+        setTopProducts(top || []);
       } catch (err) {
         console.error("Erreur lors du chargement des produits:", err);
         setError(
@@ -34,9 +47,9 @@ const Home = () => {
   // Filtrage Client-Side pour correspondre au design PHP immédiatement
   const filteredProducts = products.filter((product) => {
     const matchCategory =
-      selectedCategory === "Tous" ||
+      !selectedCategory || selectedCategory === "Tous" ||
       (product.categoryName &&
-        product.categoryName.toLowerCase() === selectedCategory.toLowerCase());
+        product.categoryName.toLowerCase() === String(selectedCategory || "").toLowerCase());
 
     const matchAvailability = !showAvailableOnly || product.available;
 
@@ -69,12 +82,12 @@ const Home = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10">
-      {/* Carrousel */}
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pt-4 pb-10">
+      {/* Carrousel promotionnel */}
       <Slider />
 
       {/* Mobile Category Bar */}
-      <div className="mb-6 lg:hidden">
+      <div className="mb-2 lg:hidden">
         <CategoryBar
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
@@ -85,8 +98,9 @@ const Home = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Desktop Sidebar Filters */}
-        <aside className="hidden lg:block lg:col-span-1">
+        {/* Desktop Sidebar Filters - JS Condition to prevent mobile DOM issues */}
+        {!isMobile && (
+          <aside className="lg:block lg:col-span-1">
           <div className="bg-transparent p-2 sticky top-24">
             <h2 className="text-lg font-bold mb-3 text-secondary flex items-center">
               <img src={FilterIcon} alt="Filtre" className="w-6 h-6 mr-2" />
@@ -99,22 +113,23 @@ const Home = () => {
                 Catégorie
               </label>
               <div className="space-y-2">
-                <button
+                <motion.button
+                  whileHover={{ x: 4 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedCategory("Tous")}
-                  className={`relative block w-full text-left px-4 py-2 rounded-full text-xs transition-colors z-10 ${selectedCategory === "Tous"
+                  className={`relative block w-full text-left px-4 py-2 rounded-full text-xs transition-colors z-10 ${(selectedCategory === "Tous" || !selectedCategory)
                       ? "text-secondary font-bold"
                       : "hover:text-primary text-gray-600"
                     }`}
                 >
-                  {selectedCategory === "Tous" && (
+                  {(selectedCategory === "Tous" || !selectedCategory) && (
                     <motion.div
                       layoutId="activeCategory"
                       className="absolute inset-0 bg-primary rounded-full -z-10"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
-                  Tous les produits
-                </button>
+                  Tous les produits</motion.button>
                 {/* Extract unique categories from products for the sidebar list */}
                 {[
                   ...new Set(
@@ -138,8 +153,7 @@ const Home = () => {
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
-                    {cat.toLowerCase()}
-                  </motion.button>
+                    {cat.toLowerCase()}</motion.button>
                 ))}
               </div>
             </div>
@@ -166,28 +180,36 @@ const Home = () => {
               </p>
             </div>
           </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Product Grid */}
         <div className="lg:col-span-3">
+          {/* Bande défilante des produits phares */}
+          <ProductCarouselStrip products={topProducts.length > 0 ? topProducts : products} />
+
           {/* Header Mobile Only (Title) */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-extrabold text-primary tracking-tight first-letter:uppercase lowercase">
-                {selectedCategory === "Tous"
-                  ? "Nos Produits"
-                  : selectedCategory.toLowerCase()}
+              <h1 className="text-3xl font-extrabold text-secondary tracking-tight first-letter:uppercase lowercase">
+                {(selectedCategory === "Tous" || !selectedCategory) ? "Nos Produits" : String(selectedCategory).toLowerCase()}
               </h1>
               <p className="text-gray-500 mt-1">
-                {selectedCategory === "Tous"
-                  ? "Découvrez notre sélection sucrée"
-                  : `Découvrez nos produits ${selectedCategory}`}
+                {(selectedCategory === "Tous" || !selectedCategory) ? "Découvrez notre sélection sucrée" : `Découvrez nos produits ${selectedCategory}`}
               </p>
             </div>
           </div>
 
-          {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
+
+            <AnimatePresence mode="wait">
+              {filteredProducts.length === 0 ? (
+              <motion.div 
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-lg shadow-md p-12 text-center"
+              >
               <div className="text-6xl mb-4">📦</div>
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
                 Aucun produit trouvé
@@ -202,14 +224,22 @@ const Home = () => {
               >
                 Réinitialiser les filtres
               </button>
-            </div>
+            </motion.div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <motion.div 
+              key="grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full items-start"
+            >
               {filteredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
+
         </div>
       </div>
     </div>

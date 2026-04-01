@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,7 +96,38 @@ public class ProductService {
                 .stock(product.getStock()) // Mappage Stock réel
                 .externalId(product.getExternalId()) // Mappage External ID
                 .available(product.getStock() > 0)
+                .active(product.isActive()) // Mappage statut actif réel
+                .created(false) // Par défaut false, surchargé lors de l'import
                 .build();
+    }
+
+    /**
+     * Récupère les N produits les plus commandés (pour le carrousel public).
+     * Si aucune commande n'existe, retourne les produits actifs les plus récents avec images.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getTopOrderedProducts(int limit) {
+        List<Product> topProducts = productRepository.findTopOrderedProducts(PageRequest.of(0, limit));
+
+        // Fallback : Si aucun produit commandé ou moins que la limite, compléter avec les produits actifs récents
+        if (topProducts.size() < limit) {
+            Page<Product> recentProducts = productRepository
+                .findByActiveTrueAndMainImageIsNotNullOrderByIdDesc(PageRequest.of(0, limit));
+
+            // Fusionner les listes en évitant les doublons
+            List<Product> combined = new java.util.ArrayList<>(topProducts);
+            for (Product product : recentProducts.getContent()) {
+                if (!combined.contains(product) && combined.size() < limit) {
+                    combined.add(product);
+                }
+            }
+            topProducts = combined;
+        }
+
+        return topProducts.stream()
+                .filter(p -> p.getMainImage() != null && !p.getMainImage().isEmpty())
+                .map(this::mapToResponse)
+                .toList();
     }
 
     // --- Méthodes Admin ---
@@ -134,7 +166,6 @@ public class ProductService {
                 .price(request.getPrice())
                 .oldPrice(request.getOldPrice())
                 .stock(request.getStock())
-                .active(request.isActive())
                 .active(request.isActive())
                 .mainImage(imageUrl) // URL ou chemin fichier
                 .category(resolveCategory(request))
@@ -187,6 +218,21 @@ public class ProductService {
     }
 
     /**
+     * Supprime définitivement tous les produits du catalogue.
+     * Supprime d'abord les order_items liés pour respecter les contraintes FK,
+     * puis supprime tous les produits.
+     * Action réservée au SUPER_ADMIN.
+     */
+    @Transactional
+    public int deleteAllProducts() {
+        int count = (int) productRepository.count();
+        // Supprimer les order_items référençant des produits (via requête native)
+        productRepository.deleteAllOrderItemsReferences();
+        productRepository.deleteAll();
+        return count;
+    }
+
+    /**
      * Helper pour trouver ou créer une catégorie selon la requête.
      */
     private Category resolveCategory(com.sucrestore.api.dto.ProductRequest request) {
@@ -229,16 +275,22 @@ public class ProductService {
      */
     @Transactional
     public ProductResponse importProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
+        log.info("🚀 [IMPORT] ImportProduit - Nom: {}, ExternalID: {}, Slug: {}, Stock: {}, Active: {}",
+            request.getName(), externalId, request.getSlug(), request.getStock(), request.isActive());
+
         // Validation basique
         if (request.getSlug() == null || request.getSlug().isEmpty()) {
+            log.error("❌ [IMPORT] Slug manquant pour le produit: {}", request.getName());
             throw new RuntimeException("Le slug est obligatoire pour l'import");
         }
 
         // PRIORITÉ 1: Recherche par ExternalId (si fourni et non vide)
         if (externalId != null && !externalId.trim().isEmpty()) {
+            log.debug("🔍 [IMPORT] Recherche par ExternalId: {}", externalId);
             Optional<Product> existingByExternalId = productRepository.findByExternalId(externalId);
             if (existingByExternalId.isPresent()) {
                 // Mise à jour du produit existant
+                log.info("🔄 [IMPORT] Produit existant trouvé par ExternalId: {}", externalId);
                 Product existingProduct = existingByExternalId.get();
 
                 existingProduct.setName(request.getName());
@@ -260,11 +312,18 @@ public class ProductService {
                     existingProduct.setCategory(category);
                 }
 
-                return mapToResponse(productRepository.save(existingProduct));
+                Product saved = productRepository.save(existingProduct);
+                log.info("✅ [IMPORT] Produit mis à jour - ID: {}, Nom: {}, Active: {}", saved.getId(), saved.getName(), saved.isActive());
+                ProductResponse response = mapToResponse(saved);
+                response.setCreated(false);
+                return response;
+            } else {
+                log.debug("🔍 [IMPORT] Aucun produit trouvé avec ExternalId: {}", externalId);
             }
         }
 
         // PRIORITÉ 2: Recherche par Slug (pour compatibilité avec anciens produits sans externalId)
+        log.debug("🔍 [IMPORT] Recherche par Slug: {}", request.getSlug());
         return productRepository.findBySlug(request.getSlug())
                 .map(existingProduct -> {
                     // Mise à jour + assignation de l'externalId si manquant
@@ -288,10 +347,15 @@ public class ProductService {
                         existingProduct.setCategory(category);
                     }
 
-                    return mapToResponse(productRepository.save(existingProduct));
+                    Product saved = productRepository.save(existingProduct);
+                    log.info("✅ [IMPORT] Produit mis à jour via Slug - ID: {}, Nom: {}, Active: {}", saved.getId(), saved.getName(), saved.isActive());
+                    ProductResponse response = mapToResponse(saved);
+                    response.setCreated(false);
+                    return response;
                 })
                 .orElseGet(() -> {
                     // NOUVEAU produit - création avec externalId
+                    log.info("➕ [IMPORT] Aucun produit existant, création d'un nouveau produit");
                     return createProductWithExternalId(request, imageUrl, externalId);
                 });
     }
@@ -300,6 +364,8 @@ public class ProductService {
      * Crée un nouveau produit avec externalId (helper pour l'import).
      */
     public ProductResponse createProductWithExternalId(com.sucrestore.api.dto.ProductRequest request, String imageUrl, String externalId) {
+        log.info("➕ [IMPORT] Création nouveau produit - Nom: {}, ExternalID: {}, Active: {}", request.getName(), externalId, request.isActive());
+
         Product product = new Product();
         product.setExternalId(externalId);
         product.setName(request.getName());
@@ -309,13 +375,20 @@ public class ProductService {
         product.setVolumeWeight(request.getVolumeWeight()); // Volume/Poids
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
-        product.setActive(true);
+        product.setActive(request.isActive()); // Utilise la valeur de la requête au lieu de forcer true
         product.setMainImage(imageUrl);
 
         // Catégorie
-        product.setCategory(resolveCategory(request));
+        Category category = resolveCategory(request);
+        log.debug("🏷️ [IMPORT] Catégorie résolue: {} (ID: {})", category.getName(), category.getId());
+        product.setCategory(category);
 
-        return mapToResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        log.info("✅ [IMPORT] Nouveau produit CRÉÉ - ID: {}, Nom: {}, Active: {}, Stock: {}",
+            saved.getId(), saved.getName(), saved.isActive(), saved.getStock());
+        ProductResponse response = mapToResponse(saved);
+        response.setCreated(true);
+        return response;
     }
 
     /**

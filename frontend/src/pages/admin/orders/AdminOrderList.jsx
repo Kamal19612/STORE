@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, Search, Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import adminOrderService from "../../../services/adminOrderService";
+import { useSseEvent } from "../../../hooks/useNotifications";
 
 const AdminOrderList = () => {
   const [orders, setOrders] = useState([]);
@@ -12,7 +13,7 @@ const AdminOrderList = () => {
 
   const navigate = useNavigate();
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adminOrderService.getAllOrders(page);
@@ -40,12 +41,17 @@ const AdminOrderList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
+  // Rafraîchissement instantané à chaque nouvelle commande (via SSE du Layout)
+  useSseEvent("new_order", fetchOrders);
+
+  // Chargement initial + polling 30s (filet de sécurité)
   useEffect(() => {
     fetchOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+    const interval = setInterval(fetchOrders, 30000);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
 
   const handleDelete = async (id) => {
     if (

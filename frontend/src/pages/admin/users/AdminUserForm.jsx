@@ -99,27 +99,27 @@ const AdminUserForm = () => {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 mb-8">
+    <div className="p-3 sm:p-6 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 sm:gap-4 mb-5 sm:mb-8">
         <Link
           to="/admin/users"
-          className="p-2 bg-white rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="p-2 bg-white dark:bg-[#242021] rounded-full border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors shrink-0"
         >
           <ArrowLeft className="h-5 w-5 text-gray-500" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">
             {isEditMode ? "Modifier Utilisateur" : "Nouvel Utilisateur"}
           </h1>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+      <div className="bg-white dark:bg-[#242021] rounded-xl shadow-sm border border-gray-100 dark:border-white/10 p-4 sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Username */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Nom d'utilisateur
               </label>
               <div className="relative">
@@ -131,14 +131,14 @@ const AdminUserForm = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, username: e.target.value })
                   }
-                  className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="pl-10 w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email
               </label>
               <div className="relative">
@@ -150,14 +150,14 @@ const AdminUserForm = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
-                  className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="pl-10 w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
             </div>
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Téléphone
               </label>
               <div className="flex gap-2">
@@ -169,7 +169,7 @@ const AdminUserForm = () => {
                     onChange={(e) =>
                       setPhoneData({ ...phoneData, code: e.target.value })
                     }
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-center"
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-center outline-none"
                     placeholder="+226"
                   />
                 </div>
@@ -182,7 +182,7 @@ const AdminUserForm = () => {
                     onChange={(e) =>
                       setPhoneData({ ...phoneData, number: e.target.value })
                     }
-                    className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="pl-10 w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                     placeholder="70 12 34 56"
                   />
                 </div>
@@ -193,7 +193,7 @@ const AdminUserForm = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {isEditMode
                   ? "Mot de passe (Laisser vide pour ne pas changer)"
                   : "Mot de passe"}
@@ -207,14 +207,14 @@ const AdminUserForm = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
-                  className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="pl-10 w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
             </div>
 
             {/* Role */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Rôle
               </label>
               <div className="relative">
@@ -224,7 +224,7 @@ const AdminUserForm = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, role: e.target.value })
                   }
-                  className="pl-10 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="pl-10 w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 >
                   <option value="MANAGER">Manager (Produits/Commandes)</option>
                   <option value="DELIVERY_AGENT">Livreur</option>
@@ -248,13 +248,13 @@ const AdminUserForm = () => {
             />
             <label
               htmlFor="active"
-              className="text-sm font-medium text-gray-700"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300"
             >
               Compte Actif
             </label>
           </div>
 
-          <div className="pt-6 border-t border-gray-100 flex justify-end">
+          <div className="pt-6 border-t border-gray-100 dark:border-white/10 flex flex-col sm:flex-row sm:justify-end gap-3">
             <button
               type="submit"
               disabled={loading}

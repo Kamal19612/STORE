@@ -93,12 +93,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /**
      * Extrait le token de l'en-tête "Authorization" : "Bearer <token>"
+     * ou du query param "token" (pour les connexions SSE via EventSource).
      */
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
 
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
             return headerAuth.substring(7);
+        }
+
+        // Fallback : query param pour les flux SSE (EventSource ne supporte pas les headers)
+        String tokenParam = request.getParameter("token");
+        if (StringUtils.hasText(tokenParam)) {
+            return tokenParam;
         }
 
         return null;

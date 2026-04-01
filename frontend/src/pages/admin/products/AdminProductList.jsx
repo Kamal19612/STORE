@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -8,6 +8,7 @@ import {
   CheckCircle,
   XCircle,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import adminProductService from "../../../services/adminProductService";
@@ -19,15 +20,30 @@ const AdminProductList = () => {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
+  const [clearLoading, setClearLoading] = useState(false);
+  const debounceTimer = useRef(null);
 
   const navigate = useNavigate();
 
-  const fetchProducts = async () => {
+  // Debounce : attend 400ms après la dernière frappe avant de lancer la recherche
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearch(value);
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setPage(0);
+      setDebouncedSearch(value);
+    }, 400);
+  };
+
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // Backend pagination commence à 0
-      const data = await adminProductService.getAllProducts(page, 10, search);
+      const data = await adminProductService.getAllProducts(page, 10, debouncedSearch);
       setProducts(data.content || []);
       setTotalPages(data.totalPages || 0);
     } catch (error) {
@@ -36,11 +52,11 @@ const AdminProductList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     fetchProducts();
-  }, [page, search]);
+  }, [fetchProducts]);
 
   const handleDelete = async (id) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
@@ -56,8 +72,23 @@ const AdminProductList = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPage(0); // Reset page on search
-    fetchProducts();
+    // Le debounce gère déjà la requête — rien à faire ici
+  };
+
+  const handleClearAll = async () => {
+    if (clearConfirmText !== "VIDER") return;
+    setClearLoading(true);
+    try {
+      const result = await adminProductService.deleteAllProducts();
+      toast.success(`Catalogue vidé — ${result.deletedCount} produit(s) supprimé(s)`);
+      setIsClearModalOpen(false);
+      setClearConfirmText("");
+      fetchProducts();
+    } catch (error) {
+      toast.error("Erreur lors de la suppression du catalogue");
+    } finally {
+      setClearLoading(false);
+    }
   };
 
   return (
@@ -71,6 +102,13 @@ const AdminProductList = () => {
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Gérez votre catalogue</p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => { setIsClearModalOpen(true); setClearConfirmText(""); }}
+              className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 text-xs sm:text-sm py-2 px-3 rounded-lg font-semibold border border-red-200 dark:border-red-800"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Vider</span>
+            </button>
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm py-2 px-3 rounded-lg"
@@ -98,7 +136,7 @@ const AdminProductList = () => {
             placeholder="Rechercher..."
             className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-[#1c191a] dark:text-white rounded-lg text-sm"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={handleSearchChange}
           />
         </form>
       </div>
@@ -124,7 +162,7 @@ const AdminProductList = () => {
             <div key={product.id} className="bg-white dark:bg-[#242021] rounded-lg shadow-sm border border-gray-100 dark:border-white/10 p-3">
               <div className="flex gap-3">
                 <div className="h-16 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-[#1c191a] shrink-0">
-                  <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                  <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" loading="lazy" decoding="async" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-900 dark:text-white text-sm truncate">{product.name}</div>
@@ -167,7 +205,7 @@ const AdminProductList = () => {
                 <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
                   <td className="px-4 py-3">
                     <div className="h-10 w-10 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white p-1">
-                      <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                      <img src={product.mainImage || "/placeholder.png"} alt={product.name} className="h-full w-full object-contain" loading="lazy" decoding="async" />
                     </div>
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white text-sm">{product.name}</td>
@@ -203,7 +241,55 @@ const AdminProductList = () => {
         </div>
       )}
 
-      <ImportProductModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onSuccess={() => { fetchProducts(); }} />
+      <ImportProductModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => fetchProducts()}
+      />
+
+      {/* Modal confirmation — Vider le catalogue */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white dark:bg-[#242021] rounded-2xl shadow-2xl w-full max-w-md p-6 border border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Vider le catalogue</h2>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Cette action supprimera <strong className="text-red-600">définitivement</strong> tous les produits ainsi que les lignes de commande associées. Elle est <strong>irréversible</strong>.
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Tapez <strong className="text-red-600 font-mono">VIDER</strong> pour confirmer :
+            </p>
+            <input
+              type="text"
+              value={clearConfirmText}
+              onChange={(e) => setClearConfirmText(e.target.value)}
+              placeholder="VIDER"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg mb-4 text-sm bg-white dark:bg-[#1c191a] dark:text-white focus:ring-2 focus:ring-red-500 outline-none"
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setIsClearModalOpen(false); setClearConfirmText(""); }}
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-white/10 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearConfirmText !== "VIDER" || clearLoading}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {clearLoading && <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />}
+                Supprimer tout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

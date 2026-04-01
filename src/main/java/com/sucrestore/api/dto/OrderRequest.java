@@ -26,12 +26,20 @@ public class OrderRequest {
     private String customerAddress;
 
     private String customerNotes;
-
     private BigDecimal customerLatitude;
     private BigDecimal customerLongitude;
+
+    // Infos Livraison
+    private String deliveryType;
+    private String scheduledTime;
+    private String manualLocationLink;
+    private BigDecimal deliveryCost;
+    private BigDecimal distance;
 
     // Panier
     @NotEmpty(message = "Le panier ne peut pas être vide")
     @Valid
     private List<OrderItemRequest> items;
+
+    private BigDecimal totalAmount;
 }

@@ -11,6 +11,11 @@ const productService = {
     return response.data;
   },
 
+  getTopProducts: async (limit = 10) => {
+    const response = await api.get(`/products/top?limit=${limit}`);
+    return response.data;
+  },
+
   getCategories: async () => {
     const response = await api.get("/categories");
     return response.data;

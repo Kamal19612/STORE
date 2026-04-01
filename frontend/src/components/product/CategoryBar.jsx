@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const CategoryBar = ({
   selectedCategory,
@@ -11,40 +10,26 @@ const CategoryBar = ({
   // Construire la liste avec "Tous" + catégories dynamiques
   const allCategories = ["Tous", ...categories];
 
-  const scroll = (direction) => {
-    if (scrollRef.current) {
-      const { current } = scrollRef;
-      const scrollAmount = 200;
-      if (direction === "left") {
-        current.scrollBy({ left: -scrollAmount, behavior: "smooth" });
-      } else {
-        current.scrollBy({ left: scrollAmount, behavior: "smooth" });
-      }
-    }
-  };
-
   return (
-    <div className="relative w-full bg-white shadow-sm border-b border-gray-100 py-2 lg:hidden flex items-center overflow-hidden">
-      <div className="flex items-center w-full px-4">
-        {/* Fixed Label - Matches PHP .category-btn-label */}
-        <div className="flex-shrink-0 flex items-center bg-primary text-secondary px-4 py-2 rounded-full font-bold text-sm mr-3">
-          <span className="mr-2">📂</span>
-          <span>Catégorie</span>
-        </div>
-
-        {/* Categories Scroll - Matches PHP .categories-scroll */}
+    <div className="relative w-full bg-white py-1 lg:hidden flex items-center overflow-hidden border-b border-gray-50 mb-0">
+      <div className="flex items-center w-full px-1">
+        {/* Categories Scroll - Pill Style Design */}
         <div
           ref={scrollRef}
-          className="flex-1 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth items-center"
+          className="flex-1 flex gap-3 overflow-x-auto no-scrollbar scroll-smooth items-center px-4 py-2"
         >
           {allCategories.map((cat) => (
             <button
               key={cat}
-              onClick={() => onSelectCategory(cat)}
-              className={`whitespace-nowrap text-sm font-semibold transition-colors duration-200 flex-shrink-0 ${
+              onClick={() => {
+                if (typeof onSelectCategory === 'function') {
+                  onSelectCategory(cat);
+                }
+              }}
+              className={`whitespace-nowrap px-5 py-2.5 rounded-full text-[10px] font-black tracking-widest transition-all duration-300 flex-shrink-0 ${
                 selectedCategory === cat
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-secondary hover:text-primary"
+                  ? "bg-primary text-secondary shadow-lg shadow-primary/20 scale-105"
+                  : "bg-gray-100 text-gray-400 hover:bg-gray-200"
               }`}
             >
               {cat.toUpperCase()}

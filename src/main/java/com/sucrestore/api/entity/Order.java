@@ -16,6 +16,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -32,7 +33,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", indexes = {
+    @Index(name = "idx_order_status", columnList = "status"),
+    @Index(name = "idx_order_created_at", columnList = "createdAt"),
+    @Index(name = "idx_order_deleted", columnList = "deleted")
+})
 public class Order {
 
     @Id
@@ -86,6 +91,35 @@ public class Order {
      */
     @Column(precision = 11, scale = 8)
     private BigDecimal customerLongitude;
+
+    /**
+     * Type de livraison (STANDARD, EXPRESS, PROGRAMMER)
+     */
+    @Column(length = 20)
+    private String deliveryType;
+
+    /**
+     * Heure de livraison programmée
+     */
+    @Column(length = 50)
+    private String scheduledTime;
+
+    /**
+     * Lien Google Maps manuel fourni par le client
+     */
+    @Column(columnDefinition = "TEXT")
+    private String manualLocationLink;
+
+    /**
+     * Frais de livraison appliqués
+     */
+    private BigDecimal deliveryCost;
+
+    /**
+     * Distance calculée pour la livraison (en km)
+     */
+    @Column(precision = 10, scale = 2)
+    private BigDecimal distance;
 
     /**
      * Sous-total de la commande (somme des articles)

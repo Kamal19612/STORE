@@ -3,11 +3,11 @@ package com.sucrestore.api.service;
 import com.sucrestore.api.dto.DashboardStatsResponse;
 import com.sucrestore.api.entity.Order;
 import com.sucrestore.api.repository.OrderRepository;
+import java.math.BigDecimal;
 import com.sucrestore.api.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 
 /**
  * Service pour les statistiques du dashboard
@@ -38,10 +38,8 @@ public class DashboardService {
         // Nombre total de produits
         Long totalProducts = productRepository.count();
 
-        // Revenu total (somme de tous les totaux de commandes)
-        BigDecimal totalRevenue = orderRepository.findAll().stream()
-                .map(Order::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Revenu total — une seule requête SQL SUM(), aucun chargement d'objets
+        BigDecimal totalRevenue = orderRepository.sumTotalRevenue();
 
         // Nombre de commandes en attente
         Long pendingOrders = orderRepository.countByStatus(Order.Status.PENDING);

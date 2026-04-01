@@ -4,9 +4,12 @@ import { useLocation } from "react-router-dom";
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "light",
-  );
+  const [theme, setTheme] = useState(() => {
+    // Only restore dark if user explicitly chose it (flagged by "user-set")
+    const saved = localStorage.getItem("theme");
+    const userSet = localStorage.getItem("theme-user-set");
+    return saved === "dark" && userSet === "true" ? "dark" : "light";
+  });
   const location = useLocation();
 
   useEffect(() => {
@@ -30,7 +33,11 @@ export const ThemeProvider = ({ children }) => {
   }, [theme, location.pathname]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("theme-user-set", "true");
+      return next;
+    });
   };
 
   return (

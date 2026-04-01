@@ -1,11 +1,13 @@
 package com.sucrestore.api.repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.sucrestore.api.entity.Order;
@@ -30,6 +32,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Compte le nombre de commandes par statut
      */
     Long countByStatus(Order.Status status);
+
+    /**
+     * Calcule le revenu total en une seule requête SQL (évite le chargement de toutes les commandes)
+     */
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o")
+    BigDecimal sumTotalRevenue();
 
     /**
      * Trouve les commandes disponibles pour livraison (CONFIRMED et pas de

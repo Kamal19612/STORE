@@ -39,5 +39,6 @@ export const updateSettings = (settings) =>
   api.put("/admin/settings", settings);
 
 export const resetStats = () => api.post("/admin/dashboard/reset-stats");
+export const syncProducts = () => api.post("/admin/products/google-sheets-sync");
 
 export default api;

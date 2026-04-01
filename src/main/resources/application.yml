@@ -1,4 +1,7 @@
 spring:
+  devtools:
+    restart:
+      enabled: false   # Désactivé : le restart classloader de DevTools brise le scan JPA des entités
   datasource:
     url: jdbc:postgresql://localhost:5432/dbstore
     username: postgres
@@ -34,14 +37,20 @@ app:
   storage:
     location: "uploads"
 
+  telegram:
+    bot-token: "7594915018:AAHzHJYLBq8LLjIAxuKbxxASvAPoeREhNhg"
+    chat-id: "5654423490"
+
 google:
   sheets:
     application-name: "Sucre Store API"
     credentials-file-path: "classpath:credentials.json"
-    spreadsheet-id: "1qcfPhb_dnSiippTY9JkNXMpDkYn5oKn0b7TTWPJkIP8" # ID extrait de votre URL
+    spreadsheet-id: "" # ID par défaut retiré pour éviter la synchro démo. L'ID sera lu depuis la base de données.
     sync-rate: 60000 # Taux de synchronisation en millisecondes (60000ms = 1 minute)
 
 server:
   port: 8081
   # servlet:
   # context-path: /api # RETIRÉ : Cause un double préfixe /api/api car les contrôleurs ont déjà @RequestMapping("/api")
+
+  

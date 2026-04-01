@@ -189,6 +189,9 @@ const ImportProductModal = ({ isOpen, onClose, onSuccess }) => {
                         Assurez-vous que le lien est accessible ("Tous les
                         utilisateurs disposant du lien").
                       </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-semibold">
+                        💡 N'oubliez pas d'ajouter l'email du compte de service en "Lecteur" sur votre Sheet : sucre-store-api@sucre-store-api.iam.gserviceaccount.com
+                      </p>
                     </div>
                   </div>
                 )}
@@ -204,9 +207,15 @@ const ImportProductModal = ({ isOpen, onClose, onSuccess }) => {
                   <p className="font-bold text-green-800 dark:text-green-300">
                     Importation terminée
                   </p>
-                  <p className="text-green-600 dark:text-green-400 text-sm">
-                    {summary.successCount} produits créés / mis à jour.
-                  </p>
+                  <div className="text-green-600 dark:text-green-400 text-sm grid grid-cols-2 gap-x-4">
+                    <span>Traités : {summary.totalProcessed}</span>
+                    <span>Succès : {summary.successCount || (summary.createdCount + summary.updatedCount)}</span>
+                    <span>Créés : {summary.createdCount}</span>
+                    <span>Mis à jour : {summary.updatedCount}</span>
+                    {summary.deactivatedCount > 0 && (
+                      <span className="text-orange-600">Désactivés : {summary.deactivatedCount}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 

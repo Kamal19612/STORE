@@ -5,8 +5,6 @@ import {
   ShoppingBag,
   Package,
   TrendingUp,
-  Clock,
-  CheckCircle,
   BarChart3,
   Calendar,
   ArrowUpRight,
@@ -46,7 +44,6 @@ const AdminDashboard = () => {
     confirmedOrders: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -55,13 +52,14 @@ const AdminDashboard = () => {
         setStats(response.data);
       } catch (err) {
         console.error("Erreur lors du chargement des statistiques:", err);
-        setError("Impossible de charger les statistiques");
       } finally {
         setLoading(false);
       }
     };
 
     fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -125,7 +123,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Grid de Cartes Analytiques */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6">
         {cards.map((card, idx) => (
           <motion.div
             key={idx}

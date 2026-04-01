@@ -1,10 +1,44 @@
+import { useState, useEffect } from "react";
 import { Outlet, Link, useNavigate } from "react-router-dom";
-import { LogOut, MapPin, Package } from "lucide-react";
+import { LogOut, Package, Bell, BellOff } from "lucide-react";
 import useAuthStore from "../store/authStore";
+import { useNotifications } from "../hooks/useNotifications";
+import { requestNotificationPermission } from "../hooks/useBrowserNotifications";
+import { subscribeToPush } from "../hooks/usePushSubscription";
 
 const DeliveryLayout = () => {
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
+
+  // État de la permission notifications
+  const [notifPermission, setNotifPermission] = useState(() => {
+    if (!("Notification" in window)) return "unsupported";
+    return Notification.permission;
+  });
+
+  const handleEnableNotifications = async () => {
+    const result = await requestNotificationPermission();
+    setNotifPermission(result);
+    if (result === "granted") subscribeToPush(useAuthStore.getState().token);
+  };
+
+  // Auto-demande de permission au montage + souscription push
+  useEffect(() => {
+    const init = async () => {
+      let perm = notifPermission;
+      if (perm === "default") {
+        perm = await requestNotificationPermission();
+        setNotifPermission(perm);
+      }
+      if (perm === "granted") {
+        subscribeToPush(useAuthStore.getState().token);
+      }
+    };
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Notifications temps réel : alerte sonore + toast + notif système à chaque nouvelle livraison
+  useNotifications("delivery");
 
   const handleLogout = async () => {
     await logout();
@@ -24,7 +58,32 @@ const DeliveryLayout = () => {
             />
             <span className="font-bold text-lg">Espace Livreur</span>
           </div>
-          <div className="text-xs opacity-90">Bonjour, {user?.username}</div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs opacity-90">Bonjour, {user?.username}</span>
+
+            {/* Bouton activation notifications */}
+            {notifPermission === "default" && (
+              <button
+                onClick={handleEnableNotifications}
+                title="Activer les notifications"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-semibold"
+              >
+                <Bell className="h-4 w-4" />
+                <span>Alertes</span>
+              </button>
+            )}
+            {notifPermission === "granted" && (
+              <Bell className="h-4 w-4 text-white/80" title="Notifications actives" />
+            )}
+            {notifPermission === "denied" && (
+              <BellOff className="h-4 w-4 text-white/40" title="Notifications bloquées — autorisez dans les réglages du navigateur" />
+            )}
+            {notifPermission === "unsupported" && (
+              <span title="Sur iPhone : ajoutez l'app à l'écran d'accueil pour recevoir les alertes" className="flex items-center gap-1 text-white/40 text-xs cursor-help">
+                <BellOff className="h-4 w-4" />
+              </span>
+            )}
+          </div>
         </div>
       </header>
 

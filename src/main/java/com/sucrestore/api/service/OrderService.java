@@ -6,8 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,18 @@ public class OrderService {
     @Autowired
     private com.sucrestore.api.repository.UserRepository userRepository;
 
+    @Autowired
+    @Lazy
+    private NotificationService notificationService;
+
+    @Autowired
+    @Lazy
+    private WebPushService webPushService;
+
+    @Autowired
+    @Lazy
+    private TelegramService telegramService;
+
     /**
      * Traite une nouvelle commande invité. 1. Vérifie le stock. 2. Crée la
      * commande et les lignes. 3. Décrémente le stock. 4. Génère le lien
@@ -61,6 +75,17 @@ public class OrderService {
         // 2. Générer un code de confirmation unique (ex: CONF-1234)
         String confirmationCode = generateConfirmationCode();
 
+        // Extraction des coordonnées si le lien est présent mais pas les coordonnées
+        BigDecimal lat = request.getCustomerLatitude();
+        BigDecimal lng = request.getCustomerLongitude();
+        if ((lat == null || lng == null) && request.getManualLocationLink() != null) {
+            BigDecimal[] coords = extractCoordinatesFromLink(request.getManualLocationLink());
+            if (coords != null) {
+                lat = coords[0];
+                lng = coords[1];
+            }
+        }
+
         // 3. Initialiser la commande
         Order order = Order.builder()
                 .orderNumber(orderNumber)
@@ -69,8 +94,13 @@ public class OrderService {
                 .customerPhone(request.getCustomerPhone())
                 .customerAddress(request.getCustomerAddress())
                 .customerNotes(request.getCustomerNotes())
-                .customerLatitude(request.getCustomerLatitude())
-                .customerLongitude(request.getCustomerLongitude())
+                .customerLatitude(lat)
+                .customerLongitude(lng)
+                .deliveryType(request.getDeliveryType())
+                .scheduledTime(request.getScheduledTime())
+                .manualLocationLink(request.getManualLocationLink())
+                .deliveryCost(request.getDeliveryCost())
+                .distance(request.getDistance())
                 .status(Order.Status.PENDING)
                 .items(new ArrayList<>())
                 .subtotal(BigDecimal.ZERO)
@@ -110,13 +140,39 @@ public class OrderService {
 
         // 4. Calculs finaux et sauvegarde
         order.setSubtotal(subtotal);
-        // order.setTax(...) // Si besoin
-        order.setTotal(subtotal); // Pour l'instant Total = Subtotal
+        // Utiliser le total envoyé par le front ou recalculer
+        if (request.getTotalAmount() != null) {
+            order.setTotal(request.getTotalAmount());
+        } else {
+            BigDecimal delivery = request.getDeliveryCost() != null ? request.getDeliveryCost() : BigDecimal.ZERO;
+            order.setTotal(subtotal.add(delivery));
+        }
 
         Order savedOrder = orderRepository.save(order);
 
         // 5. Générer le lien WhatsApp
         String whatsappLink = generateWhatsAppLink(savedOrder);
+
+        // 6. Notifications : admin (SSE + Telegram) lors d'une nouvelle commande
+        String currency = appProperties.getCurrency() != null ? appProperties.getCurrency() : "FCFA";
+        try {
+            Map<String, Object> notifData = Map.of(
+                    "id", savedOrder.getId(),
+                    "orderNumber", savedOrder.getOrderNumber(),
+                    "customerName", savedOrder.getCustomerName(),
+                    "total", savedOrder.getTotal(),
+                    "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
+            );
+            notificationService.notifyAdmins("new_order", notifData);
+            webPushService.notifyAdmins(
+                "🛒 Nouvelle commande",
+                "#" + savedOrder.getOrderNumber() + " — " + savedOrder.getCustomerName(),
+                "order-" + savedOrder.getOrderNumber()
+            );
+            telegramService.sendNewOrderNotification(savedOrder, currency);
+        } catch (Exception e) {
+            // Les notifications ne doivent jamais bloquer la commande
+        }
 
         return OrderResponse.builder()
                 .orderNumber(savedOrder.getOrderNumber())
@@ -149,8 +205,19 @@ public class OrderService {
         message.append("Adresse: ").append(order.getCustomerAddress()).append("\n");
 
         if (order.getCustomerLatitude() != null && order.getCustomerLongitude() != null) {
-            message.append("📍 Position GPS: https://www.google.com/maps?q=").append(order.getCustomerLatitude()).append(",").append(order.getCustomerLongitude()).append("\n");
+            message.append("📍 Position: https://www.google.com/maps?q=").append(order.getCustomerLatitude()).append(",").append(order.getCustomerLongitude()).append("\n");
+        } else if (order.getManualLocationLink() != null && !order.getManualLocationLink().isEmpty()) {
+            message.append("📍 Position: ").append(order.getManualLocationLink()).append("\n");
         }
+        
+        if (order.getDeliveryType() != null) {
+            message.append("🚚 Type: ").append(order.getDeliveryType());
+            if ("PROGRAMMER".equals(order.getDeliveryType()) && order.getScheduledTime() != null) {
+                message.append(" (").append(order.getScheduledTime()).append(")");
+            }
+            message.append("\n");
+        }
+        
         message.append("\n");
 
         message.append("*ARTICLES*").append("\n");
@@ -278,6 +345,26 @@ public class OrderService {
                     .build();
             statusHistoryRepository.save(history);
 
+            // Notification livreurs quand une commande est confirmée (disponible à livrer)
+            if (newStatus == Order.Status.CONFIRMED) {
+                try {
+                    Map<String, Object> notifData = Map.of(
+                            "id", savedOrder.getId(),
+                            "orderNumber", savedOrder.getOrderNumber(),
+                            "customerAddress", savedOrder.getCustomerAddress() != null ? savedOrder.getCustomerAddress() : "",
+                            "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
+                    );
+                    notificationService.notifyDeliveryAgents("new_delivery", notifData);
+                    webPushService.notifyDeliveryAgents(
+                        "🚚 Nouvelle livraison disponible",
+                        "Commande #" + savedOrder.getOrderNumber(),
+                        "delivery-" + savedOrder.getOrderNumber()
+                    );
+                } catch (Exception e) {
+                    // Ne jamais bloquer le changement de statut
+                }
+            }
+
             return savedOrder;
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Statut invalide : " + statusName);
@@ -367,6 +454,26 @@ public class OrderService {
         // Format: CONF-1234 (4 chiffres aléatoires entre 1000 et 9999)
         int randomNumber = 1000 + (int) (Math.random() * 9000);
         return "CONF-" + randomNumber;
+    }
+
+    /**
+     * Tente d'extraire les coordonnées GPS d'un lien Google Maps.
+     */
+    private BigDecimal[] extractCoordinatesFromLink(String link) {
+        try {
+            // Regex simple pour trouver lat,lng
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([0-9.-]+),([0-9.-]+)");
+            java.util.regex.Matcher matcher = pattern.matcher(link);
+            if (matcher.find()) {
+                return new BigDecimal[]{
+                    new BigDecimal(matcher.group(1)),
+                    new BigDecimal(matcher.group(2))
+                };
+            }
+        } catch (Exception e) {
+            // Ignorer si format invalide
+        }
+        return null;
     }
 
     /**

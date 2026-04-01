@@ -1,10 +1,13 @@
 package com.sucrestore.api.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.sucrestore.api.entity.Product;
@@ -44,4 +47,26 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
      * Recherche de produits par nom (contient, insensible à la casse).
      */
     Page<Product> findByNameContainingIgnoreCaseAndActiveTrue(String name, Pageable pageable);
+
+    /**
+     * Top N produits les plus commandés (par quantité totale dans les commandes).
+     * Exclut les produits sans image.
+     */
+    @Query("SELECT oi.product FROM OrderItem oi " +
+           "WHERE oi.product.active = true AND oi.product.mainImage IS NOT NULL AND oi.product.mainImage != '' " +
+           "GROUP BY oi.product " +
+           "ORDER BY SUM(oi.quantity) DESC")
+    List<Product> findTopOrderedProducts(Pageable pageable);
+
+    /**
+     * Trouve les N produits actifs avec images (pour fallback du carousel).
+     */
+    Page<Product> findByActiveTrueAndMainImageIsNotNullOrderByIdDesc(Pageable pageable);
+
+    /**
+     * Supprime tous les order_items référençant des produits (avant suppression totale du catalogue).
+     */
+    @Modifying
+    @Query(value = "DELETE FROM order_items", nativeQuery = true)
+    void deleteAllOrderItemsReferences();
 }

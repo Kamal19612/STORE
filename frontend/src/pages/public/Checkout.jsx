@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   MapPin,
@@ -8,14 +9,19 @@ import {
   MessageSquare,
   Send,
   CheckCircle,
-  ShoppingBag,
 } from "lucide-react";
+import axios from "axios";
 import useCartStore from "../../store/cartStore";
-import api from "../../services/api";
+import api, { getPublicSettings } from "../../services/api";
 import { toast } from "react-toastify";
 
+// Instance axios sans intercepteur 401 → pour les appels publics sans token
+const publicApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "/api",
+});
+
 const Checkout = () => {
-  const { items, clearCart } = useCartStore();
+  const { items, clearCart, _hydrated } = useCartStore();
   const navigate = useNavigate();
 
   // Calculer le total directement pour garantir la réactivité
@@ -26,25 +32,324 @@ const Checkout = () => {
 
   const [formData, setFormData] = useState({
     customerName: "",
-    customerPhone: "",
+    customerPhone: "+226 ",
     customerAddress: "",
     customerNotes: "",
     customerLatitude: null,
     customerLongitude: null,
+    deliveryType: "STANDARD",
+    scheduledTime: "",
+    manualLocationLink: "",
   });
+
+  const shortLinkDebounceRef = useRef(null);
+  const locationDebounceRef = useRef(null);
+  // true si l'adresse exacte a été auto-remplie (pour ne pas écraser une saisie manuelle)
+  const addressAutoFilledRef = useRef(false);
+  // Miroir des coordonnées client pour les lire depuis resolveStoreLocation (évite la race condition)
+  const customerCoordsRef = useRef({ lat: null, lng: null });
 
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [distanceLoading, setDistanceLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [baseDeliveryCost, setBaseDeliveryCost] = useState(0);
+  const [typeSurcharge, setTypeSurcharge] = useState(0);
+  const [deliveryCost, setDeliveryCost] = useState(0);
+  const [distance, setDistance] = useState(null);
+  // Coordonnées du magasin résolues une seule fois (store_location peut être une URL ou "lat,lng")
+  const [storeCoords, setStoreCoords] = useState(null);
+
+  // useQuery met les settings en cache → pas de re-fetch au retour sur l'onglet
+  const { data: appSettings = {}, isSuccess: settingsLoaded } = useQuery({
+    queryKey: ["publicSettings"],
+    queryFn: async () => {
+      const response = await getPublicSettings();
+      return response.data;
+    },
+  });
 
   useEffect(() => {
+    if (appSettings.store_location) {
+      resolveStoreLocation(appSettings.store_location);
+    }
+  }, [appSettings.store_location]);
+
+  const resolveStoreLocation = async (loc) => {
+    let resolved = null;
+
+    // Format "lat,lng" direct
+    const parts = loc.split(",");
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lng)) resolved = { lat, lng };
+    }
+
+    // URL Google Maps → résolution via le backend
+    if (!resolved) {
+      try {
+        const res = await publicApi.get(`/public/resolve-location?url=${encodeURIComponent(loc)}`);
+        if (res.data?.success) resolved = { lat: res.data.lat, lng: res.data.lng };
+        else console.error("store_location non résolu:", res.data?.message);
+      } catch (e) {
+        console.error("Impossible de résoudre store_location:", e);
+      }
+    }
+
+    if (!resolved) return;
+    // setStoreCoords déclenche l'useEffect de calcul de distance
+    // (storeCoords est dans ses dépendances → le recalcul se fait automatiquement)
+    setStoreCoords(resolved);
+  };
+
+  useEffect(() => {
+    // Attendre que Zustand ait fini de restaurer le panier depuis localStorage
+    // avant de décider de rediriger. Sans ce guard, un rechargement de page
+    // (onglet mobile discardé, retour navigateur) vide le panier affiché.
+    if (!_hydrated) return;
     if (items.length === 0 && !orderSuccess) {
       navigate("/");
     }
-  }, [items, navigate, orderSuccess]);
+  }, [_hydrated, items, navigate, orderSuccess]);
+
+  // Distance à vol d'oiseau (Haversine) — utilisée uniquement en fallback
+  const haversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // Distance estimée par Haversine × 1.30 (calibré pour Ouagadougou — optimisé sur 3 trajets réels)
+  const calculateDistance = async (lat1, lon1, lat2, lon2) => {
+    return haversineDistance(lat1, lon1, lat2, lon2) * 1.30;
+  };
+
+  // Extraire les coordonnées d'une URL Google Maps complète (non-courte)
+  const extractCoordinatesFromFullLink = (link) => {
+    if (!link) return null;
+    const patterns = [
+      /\/@(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/,   // /@lat,lng
+      /[?&]q=(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/, // ?q=lat,lng
+      /[?&]ll=(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/, // ?ll=lat,lng
+    ];
+    for (const regex of patterns) {
+      const match = link.match(regex);
+      if (match) {
+        const lat = parseFloat(match[1]);
+        const lng = parseFloat(match[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          return { lat, lng };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Résoudre un lien court ou un Plus Code via le backend
+  const resolveShortLink = async (link) => {
+    try {
+      const response = await publicApi.get(`/public/resolve-location?url=${encodeURIComponent(link)}`);
+      if (response.data?.success) {
+        return { lat: response.data.lat, lng: response.data.lng };
+      }
+    } catch (e) {
+      console.error("Erreur résolution lien:", e);
+    }
+    return null;
+  };
+
+  // Résolution immédiate d'un lien/Plus Code collé (utilisée par onPaste et onChange)
+  const resolveLinkValue = (value) => {
+    const trimmed = value.trim();
+
+    // Plus Code brut
+    const isPlusCode = /^[0-9A-Z]{4,8}\+[0-9A-Z]{2,3}/i.test(trimmed);
+    if (isPlusCode && trimmed.length > 5) {
+      setLinkLoading(true);
+      resolveShortLink(trimmed).then((coords) => {
+        setLinkLoading(false);
+        if (coords) {
+          applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
+          toast.success("Coordonnées GPS extraites du Plus Code !");
+        } else {
+          toast.error("Plus Code non reconnu. Vérifiez le format (ex: 9CXR+XVG, Ouagadougou).");
+        }
+      });
+      return true;
+    }
+
+    // Lien court maps.app.goo.gl
+    const isShortLink = value.includes("maps.app.goo.gl") || value.includes("goo.gl/");
+    if (isShortLink && value.length > 20) {
+      setLinkLoading(true);
+      resolveShortLink(value).then((coords) => {
+        setLinkLoading(false);
+        if (coords) {
+          applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
+          toast.success("Coordonnées GPS extraites avec succès !");
+        } else {
+          toast.error("Impossible d'extraire les coordonnées. Essayez un lien Google Maps classique.");
+        }
+      });
+      return true;
+    }
+
+    // Lien Google Maps complet → extraction directe (pas de requête réseau)
+    const coords = extractCoordinatesFromFullLink(value);
+    if (coords) {
+      applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
+      toast.success("Coordonnées GPS extraites du lien !");
+      return true;
+    }
+
+    return false;
+  };
+
+  // Géocodage inverse : coordonnées → adresse lisible via Nominatim
+  const reverseGeocode = async (lat, lng) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`,
+        { headers: { "User-Agent": "SucreStoreApp/1.0" } }
+      );
+      const data = await res.json();
+      if (!data?.address) return null;
+      const a = data.address;
+      const parts = [
+        a.quarter || a.suburb || a.neighbourhood || a.hamlet || "",
+        a.road || a.pedestrian || a.footway || "",
+        a.city || a.town || a.village || a.county || "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : (data.display_name?.split(",").slice(0, 3).join(",") || null);
+    } catch {
+      return null;
+    }
+  };
+
+  // Met à jour les coordonnées sans utiliser de closure stale
+  const applyCoords = (lat, lng, fieldName, fieldValue) => {
+    // Miroir synchrone pour resolveStoreLocation (race condition)
+    customerCoordsRef.current = { lat, lng };
+
+    // Mise à jour immédiate des coordonnées (et du champ déclencheur si fourni)
+    setFormData((prev) => ({
+      ...prev,
+      customerLatitude: lat,
+      customerLongitude: lng,
+      ...(fieldName ? { [fieldName]: fieldValue } : {}),
+    }));
+
+    // Géocodage inverse asynchrone → auto-remplir l'adresse si non saisie manuellement
+    reverseGeocode(lat, lng).then((addr) => {
+      if (!addr) return;
+      setFormData((prev) => {
+        if (prev.customerAddress && !addressAutoFilledRef.current) return prev;
+        addressAutoFilledRef.current = true;
+        return { ...prev, customerAddress: addr };
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!formData.customerLatitude || !formData.customerLongitude || !storeCoords) return;
+
+    setDistanceLoading(true);
+    setDistance(null);
+
+    console.info("[Coords] Boutique:", storeCoords.lat, storeCoords.lng);
+    console.info("[Coords] Client:", formData.customerLatitude, formData.customerLongitude);
+
+    calculateDistance(
+      storeCoords.lat, storeCoords.lng,
+      formData.customerLatitude, formData.customerLongitude
+    ).then((d) => {
+      setDistance(d);
+      setDistanceLoading(false);
+    });
+  }, [formData.customerLatitude, formData.customerLongitude, storeCoords]);
+
+  // Calculer les frais selon le type/mode (indépendant de la distance)
+  useEffect(() => {
+    let surcharge = 0;
+    if (formData.deliveryType === "EXPRESS") {
+      surcharge = parseInt(appSettings.express_surcharge || "1000");
+    } else if (formData.deliveryType === "PROGRAMMER") {
+      surcharge = parseInt(appSettings.scheduled_surcharge || "500");
+    }
+    setTypeSurcharge(surcharge);
+  }, [formData.deliveryType, appSettings.express_surcharge, appSettings.scheduled_surcharge]);
+
+  // Calculer les frais selon la distance
+  useEffect(() => {
+    let baseCost = 0;
+    if (distance !== null) {
+      baseCost = parseInt(appSettings.dist_tier_3_price || "3500");
+      const d1 = parseFloat(appSettings.dist_tier_1_limit || "5");
+      const p1 = parseInt(appSettings.dist_tier_1_price || "1000");
+      const d2 = parseFloat(appSettings.dist_tier_2_limit || "10");
+      const p2 = parseInt(appSettings.dist_tier_2_price || "2000");
+
+      if (distance <= d1) {
+        baseCost = p1;
+      } else if (distance <= d2) {
+        baseCost = p2;
+      }
+    }
+    setBaseDeliveryCost(baseCost);
+  }, [distance, appSettings.dist_tier_1_limit, appSettings.dist_tier_1_price, appSettings.dist_tier_2_limit, appSettings.dist_tier_2_price, appSettings.dist_tier_3_price]);
+
+  // Total livraison et Gratuité
+  useEffect(() => {
+    let totalDelivery = baseDeliveryCost + typeSurcharge;
+
+    // Livraison gratuite basée sur le sous-total uniquement ?
+    const freeDeliverySetting = appSettings.min_order_free_delivery;
+    const freeThreshold = freeDeliverySetting ? parseInt(freeDeliverySetting) : Infinity;
+
+    if (!isNaN(freeThreshold) && total >= freeThreshold) {
+      totalDelivery = 0;
+    }
+
+    setDeliveryCost(totalDelivery);
+  }, [baseDeliveryCost, typeSurcharge, total, appSettings.min_order_free_delivery]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === "customerPhone") {
+      // Garantir que l'indicatif +226 reste au début
+      if (!value.startsWith("+226 ")) {
+        setFormData({
+          ...formData,
+          [name]: "+226 " + value.replace(/^\+?\d*\s*/, ""),
+        });
+        return;
+      }
+    }
+
+    if (name === "customerAddress") {
+      // L'utilisateur modifie manuellement l'adresse → désactiver l'auto-remplissage
+      addressAutoFilledRef.current = false;
+    }
+
+    if (name === "manualLocationLink") {
+      // Debounce pour la frappe clavier : ne déclenche la résolution
+      // qu'après 500ms d'inactivité (onPaste déclenche immédiatement, sans debounce)
+      if (shortLinkDebounceRef.current) clearTimeout(shortLinkDebounceRef.current);
+      if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
+      shortLinkDebounceRef.current = setTimeout(() => {
+        resolveLinkValue(value);
+      }, 500);
+    }
+
     setFormData({ ...formData, [name]: value });
   };
 
@@ -60,11 +365,9 @@ const Checkout = () => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setFormData({
-          ...formData,
-          customerLatitude: position.coords.latitude,
-          customerLongitude: position.coords.longitude,
-        });
+        const { latitude, longitude } = position.coords;
+        applyCoords(latitude, longitude, "manualLocationLink",
+          `https://www.google.com/maps?q=${latitude},${longitude}`);
         toast.success("Position récupérée avec succès !");
         setGpsLoading(false);
       },
@@ -84,6 +387,9 @@ const Checkout = () => {
 
     const payload = {
       ...formData,
+      deliveryCost,
+      distance,
+      totalAmount: total + deliveryCost,
       items: items.map((item) => ({
         productId: item.id,
         quantity: item.quantity,
@@ -93,14 +399,18 @@ const Checkout = () => {
     try {
       const response = await api.post("/orders", payload);
       setOrderSuccess(response.data);
-      // clearCart(); // Déplacé vers la fermeture de la modale de succès
       toast.success("Commande enregistrée !");
     } catch (error) {
       console.error("Erreur commande:", error);
-      toast.error(
-        error.response?.data?.message ||
-          "Une erreur est survenue lors de la commande.",
-      );
+      const errorMessage = error.response?.data?.message || "Une erreur est survenue lors de la commande.";
+      const validationErrors = error.response?.data?.errors;
+      
+      if (validationErrors && Array.isArray(validationErrors)) {
+        const detail = validationErrors.map(err => err.defaultMessage || err).join(", ");
+        toast.error(`Erreur de validation: ${detail}`);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -108,15 +418,15 @@ const Checkout = () => {
 
   if (orderSuccess) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+      <div className="max-w-2xl mx-auto px-4 py-4 md:py-10 md:py-20 text-center">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-green-50">
           <div className="flex justify-center mb-6">
             <div className="bg-green-100 p-4 rounded-full">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
           </div>
-          <h1 className="text-3xl font-black text-secondary uppercase tracking-tight">
-            Merci pour votre commande !
+          <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tight">
+            Merci pour la commande !
           </h1>
           <p className="mt-4 text-gray-600 text-lg">
             Votre commande{" "}
@@ -142,30 +452,33 @@ const Checkout = () => {
             </a>
           </div>
 
-          <button
-            onClick={() => {
-              clearCart();
-              navigate("/");
-            }}
-            className="mt-8 text-secondary font-bold hover:text-primary transition-colors underline decoration-2 underline-offset-4"
-          >
-            Retour à l'accueil
-          </button>
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => {
+                clearCart();
+                navigate("/");
+              }}
+              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-xl transition-colors"
+            >
+              <HomeIcon className="h-5 w-5" />
+              Retour à l'accueil
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <h1 className="text-3xl font-black text-secondary mb-8 uppercase tracking-tight text-center">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-10">
+      <h1 className="text-2xl md:text-3xl font-black text-secondary mb-8 first-letter:uppercase lowercase tracking-tight text-center">
         Finaliser ma commande
       </h1>
 
       <div className="w-full">
         {/* Formulaire */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white p-4 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-6">
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-secondary flex items-center gap-2 mb-6">
                 <span className="bg-primary text-white h-7 w-7 rounded-full flex items-center justify-center text-sm">
@@ -219,45 +532,239 @@ const Checkout = () => {
                 Livraison
               </h2>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Adresse exacte
-                </label>
-                <div className="relative">
-                  <HomeIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <textarea
-                    name="customerAddress"
-                    required
-                    rows="3"
-                    value={formData.customerAddress}
-                    onChange={handleInputChange}
-                    placeholder="Quartier, rue, repères visuels..."
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
-                  ></textarea>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Position GPS — affiché en premier sur mobile, à droite sur desktop */}
+                <div className="flex flex-col md:order-last">
+                  <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                    Position GPS
+                  </label>
+                  <div className="flex-1 bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300 flex flex-col">
+                    <p className="text-xs text-gray-600 mb-3">
+                      Pour aider le livreur, partagez votre position GPS actuelle.
+                    </p>
+
+                    {/* Lien ou Plus Code — intégré dans la section GPS */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
+                        Lien ou Plus Code Google Maps
+                      </label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="text"
+                          name="manualLocationLink"
+                          value={formData.manualLocationLink}
+                          onChange={handleInputChange}
+                          onPaste={(e) => {
+                            // Déclencher immédiatement à la colle, sans debounce
+                            const pasted = e.clipboardData.getData("text");
+                            if (!pasted) return;
+                            // Annuler le debounce éventuel du onChange
+                            if (shortLinkDebounceRef.current) clearTimeout(shortLinkDebounceRef.current);
+                            if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
+                            // Mise à jour du champ puis résolution immédiate
+                            setFormData((prev) => ({ ...prev, manualLocationLink: pasted }));
+                            resolveLinkValue(pasted);
+                            e.preventDefault();
+                          }}
+                          placeholder="Lien Maps ou Plus Code (ex: 9CXR+XVG, Ouagadougou)"
+                          className={`w-full pl-9 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-sm ${linkLoading ? "pr-8 border-primary/50" : "pr-3 border-gray-200"}`}
+                        />
+                        {linkLoading && (
+                          <svg className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                          </svg>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {linkLoading ? "Extraction des coordonnées en cours..." : "Accepte : lien Google Maps, lien court (maps.app.goo.gl) ou Plus Code"}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={getGeolocation}
+                      disabled={gpsLoading}
+                      className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition-all ${formData.customerLatitude
+                          ? "bg-green-100 text-green-700 border border-green-200"
+                          : "bg-white text-secondary border border-gray-200 hover:border-primary hover:text-primary active:scale-95"
+                        }`}
+                    >
+                      <MapPin
+                        className={`h-5 w-5 ${gpsLoading ? "animate-spin" : ""}`}
+                      />
+                      {formData.customerLatitude
+                        ? "Position récupérée ✅"
+                        : "Récupérer ma position GPS"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Adresse exacte — affiché en second sur mobile, à gauche sur desktop */}
+                <div className="md:order-first">
+                  <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                    Adresse exacte
+                  </label>
+                  <div className="relative h-full">
+                    <HomeIcon className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <textarea
+                      name="customerAddress"
+                      required
+                      rows="3"
+                      value={formData.customerAddress}
+                      onChange={handleInputChange}
+                      placeholder="Quartier, rue, repères visuels..."
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300">
-                <p className="text-sm text-gray-600 mb-3">
-                  Pour aider le livreur, partagez votre position GPS actuelle.
-                </p>
-                <button
-                  type="button"
-                  onClick={getGeolocation}
-                  disabled={gpsLoading}
-                  className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition-all ${
-                    formData.customerLatitude
-                      ? "bg-green-100 text-green-700 border border-green-200"
-                      : "bg-white text-secondary border border-gray-200 hover:border-primary hover:text-primary active:scale-95"
-                  }`}
-                >
-                  <MapPin
-                    className={`h-5 w-5 ${gpsLoading ? "animate-spin" : ""}`}
-                  />
-                  {formData.customerLatitude
-                    ? "Position récupérée ✅"
-                    : "Récupérer ma position GPS"}
-                </button>
+              <div className="pt-4">
+                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">
+                  Type de livraison
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "STANDARD", label: "Standard", icon: "🛵", desc: "Plage horaire", surcharge: 0 },
+                    { id: "EXPRESS", label: "Express", icon: "⚡", desc: "Sous 1h", surcharge: parseInt(appSettings.express_surcharge || "1000") },
+                    { id: "PROGRAMMER", label: "Programmer", icon: "📅", desc: "Heure précise", surcharge: parseInt(appSettings.scheduled_surcharge || "500") },
+                  ].map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, deliveryType: type.id, scheduledTime: "" })}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all relative ${formData.deliveryType === type.id
+                        ? "border-primary bg-primary/5 text-secondary shadow-sm"
+                        : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200"
+                        }`}
+                    >
+                      {type.surcharge > 0 && (
+                        <span className="absolute -top-2 -right-1 md:-right-2 bg-secondary text-white text-[7px] md:text-[8px] px-1 md:px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">
+                          +{type.surcharge} F
+                        </span>
+                      )}
+                      <span className="text-lg md:text-xl mb-1" translate="no">{type.icon}</span>
+                      <span className="text-[10px] md:text-xs font-bold leading-tight" translate="no">{type.label}</span>
+                      <span className="text-[8px] md:text-[10px] opacity-70 leading-tight hidden xs:block" translate="no">{type.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {formData.deliveryType === "STANDARD" && (
+                  <div className="pt-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wider">
+                      Plage horaire souhaitée
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {["Matin (8h-12h)", "Après-midi (14h-18h)"].map((range) => (
+                        <button
+                          key={range}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, scheduledTime: range })}
+                          className={`py-2 px-3 rounded-lg border text-sm transition-all ${formData.scheduledTime === range
+                            ? "bg-primary text-secondary border-primary font-bold shadow-sm"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-primary/50"
+                            }`}
+                        >
+                          {range}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {formData.deliveryType === "EXPRESS" && (
+                  <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
+                    <p className="text-sm text-orange-800 flex items-center gap-2 font-medium">
+                      <span className="text-lg">⚡</span> Livraison prioritaire immédiate (estimée sous 45-60 min).
+                    </p>
+                  </div>
+                )}
+
+                {formData.deliveryType === "PROGRAMMER" && (
+                  <div className="pt-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                      Heure précise de livraison
+                    </label>
+                    <input
+                      type="time"
+                      name="scheduledTime"
+                      required
+                      value={formData.scheduledTime}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                    />
+                  </div>
+                )}
+
+              {settingsLoaded && !appSettings.store_location && !distanceLoading && distance === null && (
+                <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mt-4 text-sm text-amber-800">
+                  ⚠️ La position du magasin n'est pas encore configurée. Contactez l'administrateur.
+                </div>
+              )}
+
+              {(distanceLoading || distance !== null) && (
+                  <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 mt-4 overflow-hidden">
+                    {distanceLoading ? (
+                      <div className="flex items-center justify-center gap-3 text-gray-500">
+                        <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                        </svg>
+                        <span className="text-sm font-medium">Calcul de la distance en cours...</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-xs font-bold text-gray-500 uppercase">Distance estimée</p>
+                          <p className="text-lg font-black text-secondary">{distance.toFixed(1)} km</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-gray-500 uppercase">Coût livraison</p>
+                          <p className="text-lg font-black text-primary">
+                            {deliveryCost === 0 ? "GRATUIT" : `${deliveryCost.toLocaleString()} FCFA`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Récapitulatif Final */}
+              <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-100 space-y-3">
+                <div className="flex justify-between items-center text-gray-600">
+                  <span className="text-sm font-medium">Sous-total (Produits)</span>
+                  <span className="font-bold">{total.toLocaleString()} FCFA</span>
+                </div>
+                <div className="flex justify-between items-center text-gray-600">
+                  <span className="text-sm font-medium">Type de livraison ({formData.deliveryType})</span>
+                  <span className="font-bold text-secondary">
+                    {deliveryCost === 0 && !isNaN(parseInt(appSettings.min_order_free_delivery)) && total >= parseInt(appSettings.min_order_free_delivery)
+                      ? "OFFERT" 
+                      : `+ ${typeSurcharge.toLocaleString()} FCFA`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-gray-600">
+                  <span className="text-sm font-medium">Frais de zone (Distance)</span>
+                  <span className="font-bold text-primary">
+                    {distanceLoading
+                      ? <span className="text-xs text-gray-400 animate-pulse">Calcul...</span>
+                      : distance === null
+                        ? <span className="text-xs text-gray-400">Partagez votre position</span>
+                        : deliveryCost === 0 && !isNaN(parseInt(appSettings.min_order_free_delivery)) && total >= parseInt(appSettings.min_order_free_delivery)
+                          ? "OFFERT"
+                          : `+ ${baseDeliveryCost.toLocaleString()} FCFA`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-100">
+                  <span className="text-lg font-black text-secondary uppercase tracking-tight">Total à payer</span>
+                  <span className="text-2xl font-black text-secondary">
+                    {(total + deliveryCost).toLocaleString()} FCFA
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -280,8 +787,17 @@ const Checkout = () => {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full btn-primary py-4 text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20"
+              disabled={
+                loading ||
+                distanceLoading ||
+                distance === null ||
+                !formData.customerName.trim() ||
+                !formData.customerPhone.trim() ||
+                formData.customerPhone.trim() === "+226" ||
+                !formData.customerAddress.trim() ||
+                (formData.deliveryType === "PROGRAMMER" && !formData.scheduledTime)
+              }
+              className="w-full btn-primary py-4 text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 mt-6 disabled:bg-gray-300 disabled:shadow-none transition-all"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -309,10 +825,15 @@ const Checkout = () => {
               ) : (
                 <>
                   <Send className="h-5 w-5" />
-                  Confirmer la commande
+                  Confirmer ma commande
                 </>
               )}
             </button>
+            {(distance === null || !formData.customerName.trim() || !formData.customerPhone.trim() || formData.customerPhone.trim() === "+226" || !formData.customerAddress.trim() || (formData.deliveryType === "PROGRAMMER" && !formData.scheduledTime)) && !loading && (
+              <p className="text-center text-[10px] text-red-500 mt-2 font-bold uppercase tracking-widest">
+                ⚠️ Veuillez remplir tous les champs obligatoires et récupérer votre position GPS pour continuer
+              </p>
+            )}
           </form>
         </div>
 

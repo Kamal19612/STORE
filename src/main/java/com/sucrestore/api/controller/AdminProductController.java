@@ -124,4 +124,18 @@ public class AdminProductController {
         productService.deleteProduct(id);
         return ResponseEntity.ok().build();
     }
+
+    /**
+     * DELETE /api/admin/products : Vider tout le catalogue (suppression définitive).
+     * Réservé au SUPER_ADMIN uniquement.
+     */
+    @DeleteMapping
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<?> deleteAllProducts() {
+        int count = productService.deleteAllProducts();
+        return ResponseEntity.ok(java.util.Map.of(
+                "message", "Catalogue vidé avec succès",
+                "deletedCount", count
+        ));
+    }
 }

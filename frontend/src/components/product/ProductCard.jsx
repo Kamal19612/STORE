@@ -62,10 +62,10 @@ const ProductCard = ({ product }) => {
           </div>
         </div>
       */}
-      <div className="product-card bg-white rounded-lg shadow-md overflow-hidden relative group hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
+      <div className="product-card w-full bg-white rounded-lg shadow-md overflow-hidden relative group hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
         {/* Product Image Zone */}
         <div
-          className="relative h-36 bg-gray-200 cursor-pointer rounded-lg overflow-hidden"
+          className="relative h-28 md:h-36 bg-gray-200 cursor-pointer rounded-lg overflow-hidden"
           onClick={handleImageClick}
         >
           {product.mainImage ? (
@@ -112,10 +112,10 @@ const ProductCard = ({ product }) => {
         </div>
 
         {/* Product Info */}
-        <div className="p-2">
+        <div className="p-1.5 sm:p-2">
           <div className="mb-1">
             <span
-              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mb-1"
+              className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider py-0.5 rounded-full inline-block"
               style={{
                 backgroundColor: "rgba(var(--primary-rgb), 0.15)",
                 color: "var(--primary)",
@@ -126,19 +126,19 @@ const ProductCard = ({ product }) => {
           </div>
 
           <h3
-            className="text-sm font-bold mb-1 line-clamp-1 leading-tight first-letter:uppercase lowercase"
+            className="text-[11px] sm:text-sm font-bold mb-1 line-clamp-1 leading-tight first-letter:uppercase lowercase"
             style={{ color: "var(--secondary)" }}
           >
             {product.name}
           </h3>
 
-          <p className="text-[10px] text-gray-600 mb-2 line-clamp-2 first-letter:uppercase lowercase leading-[1.1]">
+          <p className="text-[8px] sm:text-[10px] text-gray-600 mb-2 line-clamp-2 first-letter:uppercase lowercase leading-[1.1]">
             {product.description || "Aucune description disponible."}
           </p>
 
           <div className="flex items-center justify-between mt-2">
             <span
-              className="text-base font-bold"
+              className="text-[12px] sm:text-base font-bold"
               style={{ color: "var(--primary)" }}
             >
               {formatPrice(product.price)}
@@ -147,7 +147,7 @@ const ProductCard = ({ product }) => {
             {product.available ? (
               <button
                 onClick={handleToggleCart}
-                className={`px-4 py-2 rounded-lg transition text-white flex items-center justify-center ${
+                className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg transition text-white flex items-center justify-center ${
                   isInCart ? "bg-green-500" : ""
                 }`}
                 style={
@@ -167,7 +167,7 @@ const ProductCard = ({ product }) => {
               </button>
             ) : (
               <button
-                className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
+                className="bg-gray-400 text-white px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg cursor-not-allowed"
                 disabled
               >
                 <i className="fas fa-times"></i>

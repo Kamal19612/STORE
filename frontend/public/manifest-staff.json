@@ -1,0 +1,23 @@
+{
+  "id": "/staff",
+  "name": "Sucre Store — Staff",
+  "short_name": "SS Staff",
+  "description": "Sucre Store — Espace Admin & Livreur",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f5ad41",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

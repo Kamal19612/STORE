@@ -4,8 +4,8 @@ import api from "../services/api";
 
 /**
  * Store Zustand pour gérer l'état d'authentification
- * Persiste le token et les informations utilisateur dans sessionStorage
- * (Isolement de session par onglet/fenêtre)
+ * Persiste le token dans localStorage pour que la session survive
+ * au redémarrage de la PWA installée (standalone).
  */
 const useAuthStore = create(
   persist(
@@ -37,10 +37,7 @@ const useAuthStore = create(
           role: role,
         };
 
-        // Stocker dans sessionStorage via persist
-        // Note: l'appel manuel à localStorage.setItem n'est plus nécessaire car persist gère le storage configuré
-        // Mais nous nettoyons localStorage au cas où une vieille session traîne
-        localStorage.removeItem("token");
+        // localStorage persiste entre les sessions — nécessaire pour la PWA standalone
 
         set({
           user,
@@ -58,8 +55,7 @@ const useAuthStore = create(
         } catch (error) {
           console.error("Erreur déconnexion serveur (ignorée):", error);
         } finally {
-          sessionStorage.clear(); // Nettoyage explicite
-          localStorage.removeItem("token"); // Nettoyage legacy
+          localStorage.removeItem("auth-storage");
           set({
             user: null,
             token: null,
@@ -91,8 +87,8 @@ const useAuthStore = create(
       setLoading: (loading) => set({ isLoading: loading }),
     }),
     {
-      name: "auth-storage", // Nom de la clé dans sessionStorage
-      storage: createJSONStorage(() => sessionStorage), // Utilisation de sessionStorage
+      name: "auth-storage",
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,

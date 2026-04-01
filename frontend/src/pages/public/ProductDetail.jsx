@@ -88,7 +88,7 @@ const ProductDetail = () => {
             <img
               src={
                 product.mainImage ||
-                "https://via.placeholder.com/600?text=Sucre+Store"
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Crect width='600' height='600' fill='%23f3f4f6'/%3E%3C/svg%3E"
               }
               alt={product.name}
               className="w-full h-full object-cover"

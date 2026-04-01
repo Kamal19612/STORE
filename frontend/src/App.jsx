@@ -1,17 +1,17 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
+import "./hooks/useInstallPWA"; // import eager pour enregistrer beforeinstallprompt tôt
 
 // Layouts (Eager load critical layouts)
 import MainLayout from "./layouts/MainLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import DeliveryLayout from "./layouts/DeliveryLayout";
 import PrivateRoute from "./components/PrivateRoute";
+import ManifestSwitcher from "./components/ManifestSwitcher";
 
 // Components
-import LoadingSpinner from "./components/LoadingSpinner"; // Create this if missing, or use inline
-
 // Pages - Code Splitting (Lazy Load)
 const Home = lazy(() => import("./pages/public/Home"));
 const Checkout = lazy(() => import("./pages/public/Checkout"));
@@ -53,8 +53,18 @@ const PageLoader = () => (
 import { ThemeProvider } from "./context/ThemeContext";
 
 function App() {
+  useEffect(() => {
+    // Enregistrement du Service Worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.warn("[SW] Échec enregistrement:", err);
+      });
+    }
+  }, []);
+
   return (
     <Router>
+      <ManifestSwitcher />
       <ThemeProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -164,7 +174,7 @@ function App() {
           draggable
           pauseOnHover
           theme="colored"
-          style={{ top: "100px", minWidth: "300px" }}
+          style={{ top: "70px", minWidth: "300px", maxWidth: "420px" }}
         />
       </ThemeProvider>
     </Router>

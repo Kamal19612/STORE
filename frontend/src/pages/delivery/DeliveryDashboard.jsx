@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MapPin,
   Phone,
@@ -15,6 +15,75 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import api from "../../services/api";
+import { useSseEvent } from "../../hooks/useNotifications";
+
+
+const DeliveryTimer = ({ createdAt, deliveryType, scheduledTime }) => {
+  const [timeLeft, setTimeLeft] = useState("");
+  const [urgency, setUrgency] = useState("normal"); // normal | warning | critical
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const now = new Date();
+      const created = new Date(createdAt);
+
+      if (deliveryType === "EXPRESS") {
+        const diffMs = now - created;
+        const diffMins = Math.floor(diffMs / 60000);
+        setTimeLeft(`${diffMins} min`);
+        if (diffMins > 45) setUrgency("critical");
+        else if (diffMins > 30) setUrgency("warning");
+        else setUrgency("normal");
+      } 
+      else if (deliveryType === "PROGRAMMER" && scheduledTime) {
+        try {
+          // Parse HH:mm from scheduledTime
+          const [hours, mins] = scheduledTime.split(":").map(Number);
+          const target = new Date(now);
+          target.setHours(hours, mins, 0, 0);
+          
+          // If the target time has passed today, assume it might be for a common window
+          const diffMs = target - now;
+          const diffMins = Math.floor(diffMs / 60000);
+
+          if (diffMins < 0) {
+            setTimeLeft(`Retard ${Math.abs(diffMins)} min`);
+            setUrgency("critical");
+          } else {
+            setTimeLeft(`${diffMins} min`);
+            if (diffMins < 15) setUrgency("critical");
+            else if (diffMins < 30) setUrgency("warning");
+            else setUrgency("normal");
+          }
+        } catch (e) {
+          setTimeLeft(scheduledTime);
+        }
+      }
+      else {
+        setTimeLeft(scheduledTime || "Standard");
+      }
+    };
+
+    calculateTime();
+    const timer = setInterval(calculateTime, 30000); // Update every 30s
+    return () => clearInterval(timer);
+  }, [createdAt, deliveryType, scheduledTime]);
+
+  const getUrgencyStyles = () => {
+    switch(urgency) {
+      case "critical": return "bg-red-500 text-white animate-pulse shadow-sm";
+      case "warning": return "bg-orange-500 text-white shadow-sm";
+      default: return deliveryType === "EXPRESS" ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-purple-100 text-purple-700 border-purple-200";
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getUrgencyStyles()}`}>
+      <Clock className="h-3 w-3" />
+      <span>{timeLeft}</span>
+    </div>
+  );
+};
 
 const DeliveryDashboard = () => {
   const [activeTab, setActiveTab] = useState("available"); // available | my-orders
@@ -24,13 +93,12 @@ const DeliveryDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [settings, setSettings] = useState({});
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      let endpoint = "/delivery/orders";
-      if (activeTab === "my-orders") {
-        endpoint = "/delivery/orders/my-orders";
-      }
+      const endpoint = activeTab === "my-orders"
+        ? "/delivery/orders/my-orders"
+        : "/delivery/orders";
       const response = await api.get(endpoint);
       setOrders(response.data.content || []);
     } catch (error) {
@@ -40,25 +108,31 @@ const DeliveryDashboard = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-  const fetchSettings = async () => {
+  }, [activeTab]);
+
+  const fetchSettings = useCallback(async () => {
     try {
       const response = await api.get("/public/settings");
       setSettings(response.data || {});
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
+  // Rafraîchissement instantané à chaque nouvelle livraison (via SSE du Layout)
+  useSseEvent("new_delivery", fetchOrders);
+
+  // Chargement initial + polling 30s (filet de sécurité)
   useEffect(() => {
     fetchOrders();
     fetchSettings();
-  }, [activeTab]);
+    const interval = setInterval(fetchOrders, 30000);
+    return () => clearInterval(interval);
+  }, [fetchOrders, fetchSettings]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchOrders();
-    fetchSettings();
   };
 
   const handleClaimOrder = async (id) => {
@@ -92,7 +166,20 @@ const DeliveryDashboard = () => {
     }
   };
 
-  const openMap = (address) => {
+  const openMap = (order) => {
+    let query = "";
+    if (order.customerLatitude && order.customerLongitude) {
+      query = `${order.customerLatitude},${order.customerLongitude}`;
+    } else {
+      query = encodeURIComponent(order.customerAddress);
+    }
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${query}`,
+      "_blank",
+    );
+  };
+
+  const openStoreMap = (address) => {
     const encoded = encodeURIComponent(address);
     window.open(
       `https://www.google.com/maps/search/?api=1&query=${encoded}`,
@@ -197,24 +284,41 @@ const DeliveryDashboard = () => {
               key={order.id}
               className="bg-white rounded-3xl shadow-[0_2px_20px_rgba(0,0,0,0.04)] border border-gray-100 overflow-hidden"
             >
-              {/* Card Header */}
-              <div className="px-5 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                <div className="flex items-center gap-2">
-                  <span className="bg-white border border-gray-200 text-gray-900 text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm">
-                    #{order.orderNumber}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                    <Clock className="h-3 w-3" />
-                    {new Date(order.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+              {/* Card Header Premium Reorganized */}
+              <div className="px-5 py-4 border-b border-gray-50 bg-gray-50/30">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-black text-gray-900 tracking-tight">#{order.orderNumber}</span>
+                    </div>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                       Postée à {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="bg-primary/5 px-3 py-1.5 rounded-2xl border border-primary/10 shadow-sm">
+                       <span className="block font-black text-primary text-xl leading-none">
+                        {order.total.toLocaleString()} <span className="text-xs font-bold">F</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="block font-extrabold text-primary text-lg leading-none">
-                    {order.total.toLocaleString()} F
-                  </span>
+                
+                <div className="flex items-center gap-2">
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                    order.deliveryType === "EXPRESS" ? "bg-amber-50 text-amber-700 border-amber-200" : 
+                    order.deliveryType === "PROGRAMMER" ? "bg-purple-50 text-purple-700 border-purple-200" : 
+                    "bg-white text-gray-600 border-gray-200"
+                  }`}>
+                    {order.deliveryType === "EXPRESS" ? "⚡ Livraison Express" : order.deliveryType === "PROGRAMMER" ? "📅 Livraison Programmée" : "🛵 Livraison Standard"}
+                  </div>
+                  {activeTab === "my-orders" && (
+                    <DeliveryTimer 
+                      createdAt={order.createdAt} 
+                      deliveryType={order.deliveryType} 
+                      scheduledTime={order.scheduledTime} 
+                    />
+                  )}
                 </div>
               </div>
 
@@ -234,7 +338,7 @@ const DeliveryDashboard = () => {
                     <div className="flex items-center gap-2 mb-0.5">
                       <h3
                         onClick={() =>
-                          openMap(
+                          openStoreMap(
                             settings.store_location || settings.contact_address,
                           )
                         }
@@ -300,7 +404,7 @@ const DeliveryDashboard = () => {
                         <span className="text-xs font-bold">Appeler</span>
                       </button>
                       <button
-                        onClick={() => openMap(order.customerAddress)}
+                        onClick={() => openMap(order)}
                         className="flex flex-col items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 py-3 rounded-xl transition-all active:bg-blue-200"
                       >
                         <Navigation className="h-5 w-5" />

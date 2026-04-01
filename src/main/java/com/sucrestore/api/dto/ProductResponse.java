@@ -27,4 +27,6 @@ public class ProductResponse {
     private Integer stock; // Ajouté pour l'édition Admin
     private String externalId; // ID externe de Google Sheets
     private boolean available; // basé sur stock > 0
+    private boolean active; // Statut actif réel (pour l'édition Admin)
+    private boolean created; // Utilisé pour l'import (vrai si créé, faux si mis à jour)
 }

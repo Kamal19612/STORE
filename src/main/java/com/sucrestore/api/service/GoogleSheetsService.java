@@ -24,7 +24,9 @@ import com.sucrestore.api.dto.ImportSummary;
 import com.sucrestore.api.dto.ProductRequest;
 import com.sucrestore.api.dto.ProductResponse;
 import com.sucrestore.api.entity.Product;
+import com.sucrestore.api.entity.AppSetting;
 import com.sucrestore.api.repository.ProductRepository;
+import com.sucrestore.api.repository.AppSettingRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +42,9 @@ public class GoogleSheetsService {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private AppSettingRepository appSettingRepository;
 
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS_READONLY);
@@ -96,17 +101,36 @@ public class GoogleSheetsService {
         ImportSummary summary = new ImportSummary();
         java.util.Set<String> sheetExternalIds = new java.util.HashSet<>();
 
-        String finalSpreadsheetId = (spreadsheetId != null && !spreadsheetId.isEmpty())
-                ? spreadsheetId
-                : googleConfig.getSpreadsheetId();
+        String finalSpreadsheetId = null;
+        if (spreadsheetId != null && !spreadsheetId.isBlank()) {
+            finalSpreadsheetId = spreadsheetId.trim();
+        } else {
+            // Priorité : paramètre > base de données (app_settings) > application.yml
+            finalSpreadsheetId = appSettingRepository.findByKey("google_sheet_id")
+                    .map(AppSetting::getValue)
+                    .filter(v -> !v.isBlank())
+                    .orElse(googleConfig.getSpreadsheetId());
+        }
+
+        log.info("🚀 Début synchronisation Google Sheets (ID: {})", finalSpreadsheetId);
 
         if (finalSpreadsheetId == null || finalSpreadsheetId.isEmpty()) {
-            summary.addError(0, "ID du Google Sheet non configuré (ni dans la requête, ni dans application.yml)");
+            summary.addError(0, "ID du Google Sheet non configuré (ni dans la requête, ni en base de données, ni dans application.yml)");
             log.error("Import échoué: Spreadsheet ID manquant");
             return summary;
         }
 
-        String range = "A:H"; // Colonnes A à H selon la structure utilisateur
+        // Sauvegarder l'ID utilisé pour les futures synchronisations automatiques
+        final String idToSave = finalSpreadsheetId;
+        AppSetting sheetSetting = appSettingRepository.findByKey("google_sheet_id")
+                .orElse(AppSetting.builder().key("google_sheet_id").description("ID du Google Sheet pour la synchronisation produits").build());
+        sheetSetting.setValue(idToSave);
+        appSettingRepository.save(sheetSetting);
+
+        // Essayer plusieurs noms d'onglets possibles pour trouver les produits
+        // Format: "NomFeuille!A:H" pour spécifier une feuille spécifique
+        String[] possibleSheetNames = {"Produits!A:H", "PRODUITS!A:H", "Products!A:H", "Feuille 1!A:H", "Sheet1!A:H", "A:H"};
+        String range = "Produits!A:H"; // Par défaut, on essaie "Produits"
 
         log.info("🔄 Démarrage de la synchronisation Google Sheets...");
         log.info("📋 Spreadsheet ID: {}, Range: {}", finalSpreadsheetId, range);
@@ -115,25 +139,39 @@ public class GoogleSheetsService {
             List<List<Object>> values = getSpreadsheetValues(finalSpreadsheetId, range);
 
             if (values == null || values.isEmpty()) {
-                summary.addError(0, "Aucune donnée trouvée dans le Sheet (Range: " + range + "). Vérifiez que les données sont sur la première feuille.");
-                log.warn("Aucune donnée trouvée pour ID: {} et Range: {}", finalSpreadsheetId, range);
+                log.warn("⚠️ Le sheet est vide ou inaccessible (Range: {})", range);
+                summary.addError(0, "Sheet vide ou inaccessible");
                 return summary;
             }
 
             log.info("📊 {} lignes trouvées dans le Sheet", values.size());
 
             int rowNum = 0;
+            int processedCount = 0;
+            int skippedCount = 0;
             for (List<Object> row : values) {
                 rowNum++;
                 if (rowNum == 1) {
+                    log.info("📋 En-tête du Sheet: {}", row);
                     continue; // Skip Header
+                }
+                // Log des 3 premières lignes de données pour déboguer
+                if (rowNum <= 4) {
+                    log.info("🔍 [DEBUG] Ligne {}: {}", rowNum, row);
                 }
                 try {
                     String externalId = SafeGet(row, 0);
                     if (externalId != null && !externalId.isEmpty()) {
                         sheetExternalIds.add(externalId);
                     }
+
+                    // Log toutes les 50 lignes pour suivre la progression
+                    if (rowNum % 50 == 0) {
+                        log.info("📊 Progression: {} lignes traitées...", rowNum);
+                    }
+
                     boolean isNew = processRow(row, summary, rowNum);
+                    processedCount++;
                     // Compter créations vs mises à jour
                     if (isNew) {
                         summary.incrementCreated();
@@ -143,9 +181,12 @@ public class GoogleSheetsService {
                 } catch (RuntimeException e) {
                     String errorMsg = "Erreur ligne " + rowNum + ": " + e.getMessage();
                     summary.addError(rowNum, errorMsg);
-                    log.error(errorMsg);
+                    log.error("❌ " + errorMsg, e);
+                    skippedCount++;
                 }
             }
+
+            log.info("📈 Traitement terminé: {} lignes traitées avec succès, {} ignorées/erreurs", processedCount, skippedCount);
 
             // Désactiver les produits qui ne sont plus dans le Sheet
             deactivateDeletedProducts(sheetExternalIds, summary);
@@ -175,9 +216,13 @@ public class GoogleSheetsService {
         String availabilityStr = SafeGet(row, 6);
         String priceStr = SafeGet(row, 7);
 
+        log.info("📝 [ROW {}] Processing: ID={}, Name={}, Category={}, Price={}, Availability={}",
+            rowNum, externalId, name, categoryName, priceStr, availabilityStr);
+
         if (name.isEmpty()) {
             // Parfois l'ID est là mais pas le nom, on ignore
             if (SafeGet(row, 0).isEmpty()) {
+                log.trace("Ligne {}: Ligne vide ignorée", rowNum);
                 return false; // Ligne vide
             }
             summary.addError(rowNum, "Nom du produit obligatoire");
@@ -198,6 +243,7 @@ public class GoogleSheetsService {
             // Parsing Prix
             String cleanPrice = priceStr.replace(",", ".").replaceAll("[^0-9.]", "");
             request.setPrice(cleanPrice.isEmpty() ? BigDecimal.ZERO : new BigDecimal(cleanPrice));
+            log.debug("💰 [ROW {}] Prix parsé: {} -> {}", rowNum, priceStr, request.getPrice());
 
             request.setDescription(description);
             request.setVolumeWeight(volumeWeight); // Volume/Poids depuis colonne E
@@ -224,22 +270,26 @@ public class GoogleSheetsService {
             }
             request.setStock(stock);
             request.setActive(stock > 0);
+            log.debug("📦 [ROW {}] Stock parsé: {} -> {} (active={})", rowNum, availabilityStr, stock, request.isActive());
 
             // Slug generation
             String slug = name.toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
             request.setSlug(slug);
 
+            log.info("🚀 [ROW {}] Appel importProduct pour: {} (ID={}, Stock={}, Active={})",
+                rowNum, name, externalId, stock, request.isActive());
+
             // MODIFIÉ: Passer l'externalId au service
             ProductResponse savedProduct = productService.importProduct(request, imageUrl, externalId);
-            log.info("Produit importé: {} (ID externe: {}, Slug: {})", savedProduct.getName(), externalId, savedProduct.getSlug());
+            log.info("✅ [ROW {}] Produit importé: {} (ID externe: {}, Slug: {}, Created: {})",
+                rowNum, savedProduct.getName(), externalId, savedProduct.getSlug(), savedProduct.isCreated());
             summary.incrementSuccess();
 
-            // Retourner true si c'est une création (ID null avant), false si c'est une mise à jour
-            // Note: on ne peut pas facilement déterminer ça ici, donc on retourne false par défaut
-            // La logique de comptage sera ajustée dans importProduct
-            return false;
+            // Retourner vrai si c'est une création, faux si c'est une mise à jour
+            return savedProduct.isCreated();
 
         } catch (RuntimeException e) {
+            log.error("❌ [ROW {}] Erreur traitement: {}", rowNum, e.getMessage(), e);
             throw new RuntimeException("Erreur traitement: " + e.getMessage(), e);
         }
     }
@@ -289,8 +339,18 @@ public class GoogleSheetsService {
      * Tâche planifiée : Importe les produits automatiquement. Le délai est
      * configurable via 'google.sheets.sync-rate' (défaut: 600000ms = 10 min).
      */
-    @org.springframework.scheduling.annotation.Scheduled(fixedRateString = "${google.sheets.sync-rate:600000}")
+    @org.springframework.scheduling.annotation.Scheduled(fixedRateString = "${google.sheets.sync-rate:60000}")
     public void importProductsScheduled() {
+        // Vérifier si la synchronisation est activée en base de données
+        boolean isEnabled = appSettingRepository.findByKey("google_sheet_sync_enabled")
+                .map(s -> !"false".equalsIgnoreCase(s.getValue()))
+                .orElse(true);
+
+        if (!isEnabled) {
+            log.info("⏸️ Synchronisation automatique ignorée (désactivée dans les paramètres)");
+            return;
+        }
+
         log.info("🔄 Démarrage de la synchronisation automatique Google Sheets...");
         ImportSummary summary = fetchProducts(null); // Utilise l'ID par défaut
 
