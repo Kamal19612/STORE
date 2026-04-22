@@ -134,6 +134,9 @@ const CartDrawer = ({ isOpen, onClose }) => {
               <button
                 onClick={() => {
                   onClose();
+                  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                  document.body.scrollTop = 0;
+                  document.documentElement.scrollTop = 0;
                   navigate("/checkout");
                 }}
                 className="btn-primary w-full py-3 text-lg font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 tracking-wide"

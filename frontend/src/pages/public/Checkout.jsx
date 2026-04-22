@@ -54,6 +54,7 @@ const Checkout = () => {
   const [linkLoading, setLinkLoading] = useState(false);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [pushPrompt, setPushPrompt] = useState(null); // null | "asking" | "subscribed" | "denied"
   const [baseDeliveryCost, setBaseDeliveryCost] = useState(0);
   const [typeSurcharge, setTypeSurcharge] = useState(0);
   const [deliveryCost, setDeliveryCost] = useState(0);
@@ -114,6 +115,26 @@ const Checkout = () => {
     }
   }, [_hydrated, items, navigate, orderSuccess]);
 
+  // Remonter en haut dès que la commande est confirmée
+  // (pas de changement de route → ScrollToTop ne se déclenche pas)
+  useEffect(() => {
+    if (orderSuccess) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      document.querySelectorAll("main").forEach((el) => {
+        el.scrollTop = 0;
+      });
+      // Double RAF pour couvrir tout rendu différé
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+          document.querySelectorAll("main").forEach((el) => {
+            el.scrollTop = 0;
+          });
+        })
+      );
+    }
+  }, [orderSuccess]);
+
   // Distance à vol d'oiseau (Haversine) — utilisée uniquement en fallback
   const haversineDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
@@ -137,8 +158,10 @@ const Checkout = () => {
   const extractCoordinatesFromFullLink = (link) => {
     if (!link) return null;
     const patterns = [
-      /\/@(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/,   // /@lat,lng
-      /[?&]q=(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/, // ?q=lat,lng
+      // !3d!4d en priorité : coordonnées exactes du pin (dans le champ data=)
+      /!3d(-?[0-9]{1,3}\.[0-9]+)!4d(-?[0-9]{1,3}\.[0-9]+)/,
+      /\/@(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/,    // /@lat,lng (viewport)
+      /[?&]q=(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/,  // ?q=lat,lng
       /[?&]ll=(-?[0-9]{1,3}\.[0-9]+),(-?[0-9]{1,3}\.[0-9]+)/, // ?ll=lat,lng
     ];
     for (const regex of patterns) {
@@ -203,11 +226,26 @@ const Checkout = () => {
       return true;
     }
 
-    // Lien Google Maps complet → extraction directe (pas de requête réseau)
-    const coords = extractCoordinatesFromFullLink(value);
-    if (coords) {
-      applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
-      toast.success("Coordonnées GPS extraites du lien !");
+    // Lien Google Maps complet → extraction directe d'abord, backend en fallback
+    const isGoogleMapsUrl = value.includes("google.com/maps") || value.includes("maps.google.com");
+    if (isGoogleMapsUrl) {
+      const coords = extractCoordinatesFromFullLink(value);
+      if (coords) {
+        applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
+        toast.success("Coordonnées GPS extraites du lien !");
+        return true;
+      }
+      // Fallback backend : l'URL ne contient pas de coordonnées lisibles directement
+      setLinkLoading(true);
+      resolveShortLink(value).then((resolved) => {
+        setLinkLoading(false);
+        if (resolved) {
+          applyCoords(resolved.lat, resolved.lng, "manualLocationLink", value);
+          toast.success("Coordonnées GPS extraites avec succès !");
+        } else {
+          toast.error("Impossible d'extraire les coordonnées de ce lien.");
+        }
+      });
       return true;
     }
 
@@ -307,20 +345,11 @@ const Checkout = () => {
     setBaseDeliveryCost(baseCost);
   }, [distance, appSettings.dist_tier_1_limit, appSettings.dist_tier_1_price, appSettings.dist_tier_2_limit, appSettings.dist_tier_2_price, appSettings.dist_tier_3_price]);
 
-  // Total livraison et Gratuité
+  // Calcul du coût global (Strict paramétrage Admin)
   useEffect(() => {
-    let totalDelivery = baseDeliveryCost + typeSurcharge;
-
-    // Livraison gratuite basée sur le sous-total uniquement ?
-    const freeDeliverySetting = appSettings.min_order_free_delivery;
-    const freeThreshold = freeDeliverySetting ? parseInt(freeDeliverySetting) : Infinity;
-
-    if (!isNaN(freeThreshold) && total >= freeThreshold) {
-      totalDelivery = 0;
-    }
-
-    setDeliveryCost(totalDelivery);
-  }, [baseDeliveryCost, typeSurcharge, total, appSettings.min_order_free_delivery]);
+    // Toujours appliquer la distance et la surcharge selon les grilles de l'administrateur
+    setDeliveryCost(baseDeliveryCost + typeSurcharge);
+  }, [baseDeliveryCost, typeSurcharge]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -404,7 +433,7 @@ const Checkout = () => {
       console.error("Erreur commande:", error);
       const errorMessage = error.response?.data?.message || "Une erreur est survenue lors de la commande.";
       const validationErrors = error.response?.data?.errors;
-      
+
       if (validationErrors && Array.isArray(validationErrors)) {
         const detail = validationErrors.map(err => err.defaultMessage || err).join(", ");
         toast.error(`Erreur de validation: ${detail}`);
@@ -415,6 +444,47 @@ const Checkout = () => {
       setLoading(false);
     }
   };
+
+  // ─── Push notification helper ────────────────────────────────────────────────
+  const VAPID_PUBLIC_KEY = "BFgwMeEPKmjceqgeKQqezk_yyf_FLa7LTW7eul_0HnSMfPfPFnKwH-fSGjxCUU5cmiCAdIvqlTJkSGUBkhPgFCw";
+
+  const subscribePush = async (orderNumber) => {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setPushPrompt("denied");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushPrompt("denied");
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+      const json = sub.toJSON();
+      await publicApi.post("/notifications/push/customer-subscribe", {
+        orderNumber,
+        endpoint: json.endpoint,
+        keys: json.keys,
+      });
+      setPushPrompt("subscribed");
+    } catch (err) {
+      console.error("Push subscribe error", err);
+      setPushPrompt("denied");
+    }
+  };
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   if (orderSuccess) {
     return (
@@ -451,6 +521,52 @@ const Checkout = () => {
               Confirmer sur WhatsApp
             </a>
           </div>
+
+          {/* Notification push client */}
+          {pushPrompt === null && (
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-5 text-left">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🔔</span>
+                <div className="flex-1">
+                  <p className="font-bold text-blue-900 text-sm">
+                    Recevoir des notifications de suivi ?
+                  </p>
+                  <p className="text-blue-700 text-xs mt-1">
+                    Soyez alerté(e) dès que votre commande est confirmée ou annulée, même si vous fermez cette page.
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        setPushPrompt("asking");
+                        subscribePush(orderSuccess.orderNumber);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Oui, m'alerter
+                    </button>
+                    <button
+                      onClick={() => setPushPrompt("denied")}
+                      className="bg-white hover:bg-gray-50 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+                    >
+                      Non merci
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {pushPrompt === "asking" && (
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center text-blue-700 text-sm">
+              Activation en cours…
+            </div>
+          )}
+
+          {pushPrompt === "subscribed" && (
+            <div className="mt-6 bg-green-50 border border-green-200 rounded-2xl p-4 text-center text-green-700 text-sm font-medium">
+              ✅ Vous serez notifié(e) dès que votre commande sera traitée.
+            </div>
+          )}
 
           <div className="mt-8 flex justify-center">
             <button
@@ -572,8 +688,8 @@ const Checkout = () => {
                         />
                         {linkLoading && (
                           <svg className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
                         )}
                       </div>
@@ -587,8 +703,8 @@ const Checkout = () => {
                       onClick={getGeolocation}
                       disabled={gpsLoading}
                       className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition-all ${formData.customerLatitude
-                          ? "bg-green-100 text-green-700 border border-green-200"
-                          : "bg-white text-secondary border border-gray-200 hover:border-primary hover:text-primary active:scale-95"
+                        ? "bg-green-100 text-green-700 border border-green-200"
+                        : "bg-white text-secondary border border-gray-200 hover:border-primary hover:text-primary active:scale-95"
                         }`}
                     >
                       <MapPin
@@ -654,51 +770,51 @@ const Checkout = () => {
               </div>
 
               {formData.deliveryType === "STANDARD" && (
-                  <div className="pt-2">
-                    <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wider">
-                      Plage horaire souhaitée
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {["Matin (8h-12h)", "Après-midi (14h-18h)"].map((range) => (
-                        <button
-                          key={range}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, scheduledTime: range })}
-                          className={`py-2 px-3 rounded-lg border text-sm transition-all ${formData.scheduledTime === range
-                            ? "bg-primary text-secondary border-primary font-bold shadow-sm"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-primary/50"
-                            }`}
-                        >
-                          {range}
-                        </button>
-                      ))}
-                    </div>
+                <div className="pt-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wider">
+                    Plage horaire souhaitée
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["Matin (8h-12h)", "Après-midi (14h-18h)"].map((range) => (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, scheduledTime: range })}
+                        className={`py-2 px-3 rounded-lg border text-sm transition-all ${formData.scheduledTime === range
+                          ? "bg-primary text-secondary border-primary font-bold shadow-sm"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-primary/50"
+                          }`}
+                      >
+                        {range}
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                {formData.deliveryType === "EXPRESS" && (
-                  <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
-                    <p className="text-sm text-orange-800 flex items-center gap-2 font-medium">
-                      <span className="text-lg">⚡</span> Livraison prioritaire immédiate (estimée sous 45-60 min).
-                    </p>
-                  </div>
-                )}
+              {formData.deliveryType === "EXPRESS" && (
+                <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
+                  <p className="text-sm text-orange-800 flex items-center gap-2 font-medium">
+                    <span className="text-lg">⚡</span> Livraison prioritaire immédiate (estimée sous 45-60 min).
+                  </p>
+                </div>
+              )}
 
-                {formData.deliveryType === "PROGRAMMER" && (
-                  <div className="pt-2">
-                    <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                      Heure précise de livraison
-                    </label>
-                    <input
-                      type="time"
-                      name="scheduledTime"
-                      required
-                      value={formData.scheduledTime}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
-                    />
-                  </div>
-                )}
+              {formData.deliveryType === "PROGRAMMER" && (
+                <div className="pt-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                    Heure précise de livraison
+                  </label>
+                  <input
+                    type="time"
+                    name="scheduledTime"
+                    required
+                    value={formData.scheduledTime}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                  />
+                </div>
+              )}
 
               {settingsLoaded && !appSettings.store_location && !distanceLoading && distance === null && (
                 <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mt-4 text-sm text-amber-800">
@@ -707,31 +823,31 @@ const Checkout = () => {
               )}
 
               {(distanceLoading || distance !== null) && (
-                  <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 mt-4 overflow-hidden">
-                    {distanceLoading ? (
-                      <div className="flex items-center justify-center gap-3 text-gray-500">
-                        <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                        </svg>
-                        <span className="text-sm font-medium">Calcul de la distance en cours...</span>
+                <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 mt-4 overflow-hidden">
+                  {distanceLoading ? (
+                    <div className="flex items-center justify-center gap-3 text-gray-500">
+                      <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      <span className="text-sm font-medium">Calcul de la distance en cours...</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase">Distance estimée</p>
+                        <p className="text-lg font-black text-secondary">{distance.toFixed(1)} km</p>
                       </div>
-                    ) : (
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="text-xs font-bold text-gray-500 uppercase">Distance estimée</p>
-                          <p className="text-lg font-black text-secondary">{distance.toFixed(1)} km</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-gray-500 uppercase">Coût livraison</p>
-                          <p className="text-lg font-black text-primary">
-                            {deliveryCost === 0 ? "GRATUIT" : `${deliveryCost.toLocaleString()} FCFA`}
-                          </p>
-                        </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Coût livraison</p>
+                        <p className="text-lg font-black text-primary">
+                          {deliveryCost === 0 ? "GRATUIT" : `${deliveryCost.toLocaleString()} FCFA`}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Récapitulatif Final */}
               <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-100 space-y-3">
@@ -742,21 +858,21 @@ const Checkout = () => {
                 <div className="flex justify-between items-center text-gray-600">
                   <span className="text-sm font-medium">Type de livraison ({formData.deliveryType})</span>
                   <span className="font-bold text-secondary">
-                    {deliveryCost === 0 && !isNaN(parseInt(appSettings.min_order_free_delivery)) && total >= parseInt(appSettings.min_order_free_delivery)
-                      ? "OFFERT" 
-                      : `+ ${typeSurcharge.toLocaleString()} FCFA`}
+                    {(() => {
+                      if (typeSurcharge > 0) return `+ ${typeSurcharge.toLocaleString()} FCFA`;
+                      return "Inclus";
+                    })()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-gray-600">
                   <span className="text-sm font-medium">Frais de zone (Distance)</span>
                   <span className="font-bold text-primary">
-                    {distanceLoading
-                      ? <span className="text-xs text-gray-400 animate-pulse">Calcul...</span>
-                      : distance === null
-                        ? <span className="text-xs text-gray-400">Partagez votre position</span>
-                        : deliveryCost === 0 && !isNaN(parseInt(appSettings.min_order_free_delivery)) && total >= parseInt(appSettings.min_order_free_delivery)
-                          ? "OFFERT"
-                          : `+ ${baseDeliveryCost.toLocaleString()} FCFA`}
+                    {(() => {
+                      if (distanceLoading) return <span className="text-xs text-gray-400 animate-pulse">Calcul...</span>;
+                      if (distance === null) return <span className="text-xs text-gray-400">Partagez votre position</span>;
+                      
+                      return `+ ${baseDeliveryCost.toLocaleString()} FCFA`;
+                    })()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-3 mt-2 border-t border-gray-100">

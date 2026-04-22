@@ -105,13 +105,16 @@ export function useNotifications(role) {
           { autoClose: 10000, style: { whiteSpace: "pre-line" } }
         );
 
-        sendBrowserNotification("🛒 Nouvelle commande", {
-          body: `#${data.orderNumber} — ${data.customerName}${typeLabel ? "\n" + typeLabel : ""}`,
-          tag: `order-${data.orderNumber}`,
-          requireInteraction: true,
-        });
+        // Notification système uniquement si l'onglet est en arrière-plan
+        // (évite le doublon avec le Web Push qui arrive aussi du backend)
+        if (document.hidden) {
+          sendBrowserNotification("🛒 Nouvelle commande", {
+            body: `#${data.orderNumber} — ${data.customerName}${typeLabel ? "\n" + typeLabel : ""}`,
+            tag: `order-${data.orderNumber}`,
+            requireInteraction: true,
+          });
+        }
 
-        // Diffuser à toutes les pages enfants via CustomEvent
         window.dispatchEvent(new CustomEvent("sse:new_order", { detail: data }));
       } catch (_) {}
     });
@@ -130,13 +133,15 @@ export function useNotifications(role) {
           { autoClose: 12000, style: { whiteSpace: "pre-line" } }
         );
 
-        sendBrowserNotification("🚚 Nouvelle livraison disponible", {
-          body: `Commande #${data.orderNumber}${typeLabel ? " · " + typeLabel : ""}`,
-          tag: `delivery-${data.orderNumber}`,
-          requireInteraction: true,
-        });
+        // Notification système uniquement si l'onglet est en arrière-plan
+        if (document.hidden) {
+          sendBrowserNotification("🚚 Nouvelle livraison disponible", {
+            body: `Commande #${data.orderNumber}${typeLabel ? " · " + typeLabel : ""}`,
+            tag: `delivery-${data.orderNumber}`,
+            requireInteraction: true,
+          });
+        }
 
-        // Diffuser à toutes les pages enfants via CustomEvent
         window.dispatchEvent(new CustomEvent("sse:new_delivery", { detail: data }));
       } catch (_) {}
     });

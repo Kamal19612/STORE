@@ -50,6 +50,12 @@ const useAuthStore = create(
        * Déconnecte l'utilisateur et nettoie le state
        */
       logout: async () => {
+        // Évite un double-appel si déjà déconnecté
+        if (!get().token) {
+          localStorage.removeItem("auth-storage");
+          set({ user: null, token: null, isAuthenticated: false });
+          return;
+        }
         try {
           await api.post("/auth/logout");
         } catch (error) {
@@ -75,8 +81,8 @@ const useAuthStore = create(
           return true;
         }
 
-        // Nettoyer si token invalide
-        get().logout();
+        // Nettoyer le state sans appeler l'API (pas de session à fermer)
+        set({ user: null, token: null, isAuthenticated: false });
         return false;
       },
 

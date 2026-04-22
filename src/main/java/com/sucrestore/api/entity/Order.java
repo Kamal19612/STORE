@@ -51,7 +51,7 @@ public class Order {
     private String orderNumber;
 
     /**
-     * Code de confirmation unique (ex: CONF-1234)
+     * Code de confirmation unique (ex: 1234)
      */
     @Column(unique = true, length = 10)
     private String confirmationCode;
@@ -167,6 +167,7 @@ public class Order {
     public enum Status {
         PENDING, // En attente de validation
         CONFIRMED, // Validée par l'admin
+        REJECTED, // Rejetée par l'admin (refus explicite)
         SHIPPED, // Expédiée / En cours de livraison
         DELIVERED, // Livrée au client
         CANCELLED  // Annulée

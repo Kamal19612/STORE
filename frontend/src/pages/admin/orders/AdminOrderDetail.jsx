@@ -26,8 +26,9 @@ const AdminOrderDetail = () => {
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [deliveryTime, setDeliveryTime] = useState(null);
   const [whatsappSent, setWhatsappSent] = useState(false);
+  const [justActioned, setJustActioned] = useState(null); // "confirmed" | "cancelled"
 
-  const fetchOrder = useCallback(async () => {
+  const fetchOrder = useCallback(async (silent = false) => {
     try {
       const [orderData, historyData] = await Promise.all([
         adminOrderService.getOrderById(id),
@@ -43,16 +44,18 @@ const AdminOrderDetail = () => {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Erreur chargement commande");
+      if (!silent) toast.error("Erreur chargement commande");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
-  // Chargement initial + polling 30s pour que le statut se mette à jour automatiquement
+  // Chargement initial + polling 30s silencieux (skip si onglet en arrière-plan)
   useEffect(() => {
-    fetchOrder();
-    const interval = setInterval(fetchOrder, 30000);
+    fetchOrder(false);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchOrder(true);
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchOrder]);
 
@@ -69,6 +72,9 @@ const AdminOrderDetail = () => {
       // Refresh history to see the new change immediately
       const historyData = await adminOrderService.getOrderHistory(id);
       setHistory(historyData);
+
+      if (newStatus === "CONFIRMED") setJustActioned("confirmed");
+      if (newStatus === "CANCELLED") setJustActioned("cancelled");
 
       toast.success(`Statut mis à jour : ${newStatus}`);
     } catch (error) {
@@ -123,6 +129,25 @@ const AdminOrderDetail = () => {
       CANCELLED: "Annulée",
     };
     return labels[status] || status;
+  };
+
+  const getRoleLabel = (role) => {
+    const labels = {
+      SUPER_ADMIN: "Super Admin",
+      ADMIN: "Admin",
+      MANAGER: "Manager",
+      DELIVERY_AGENT: "Livreur",
+    };
+    return labels[role] || role;
+  };
+
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case "SUPER_ADMIN": return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+      case "ADMIN": return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+      case "MANAGER": return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300";
+      default: return "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400";
+    }
   };
 
   const formatDate = (dateString) => {
@@ -387,10 +412,10 @@ const AdminOrderDetail = () => {
                   )}
                 </div>
 
-                {/* WhatsApp Quick Action — actif uniquement après validation */}
+                {/* WhatsApp Quick Action */}
                 <div>
-                  {order.status === "PENDING" || order.status === "CANCELLED" ? (
-                    <div title="Disponible après validation de la commande">
+                  {order.status === "PENDING" ? (
+                    <div title="Disponible après validation ou annulation de la commande">
                       <button
                         disabled
                         className="w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide cursor-not-allowed bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-600 border border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center gap-2"
@@ -402,17 +427,31 @@ const AdminOrderDetail = () => {
                         Disponible après validation
                       </p>
                     </div>
+                  ) : order.status === "CANCELLED" ? (
+                    <button
+                      onClick={handleWhatsAppNotify}
+                      className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 bg-red-500 text-white hover:brightness-110 ${
+                        justActioned === "cancelled"
+                          ? "btn-whatsapp-blink"
+                          : "shadow-sm shadow-red-500/30 transition-colors"
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      {justActioned === "cancelled"
+                        ? "⚡ Notifier annulation"
+                        : "Notifier annulation"}
+                    </button>
                   ) : (
                     <button
                       onClick={handleWhatsAppNotify}
                       className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 bg-[#25D366] text-white hover:brightness-110 ${
-                        order.status === "CONFIRMED" && !whatsappSent
+                        justActioned === "confirmed" && !whatsappSent
                           ? "btn-whatsapp-blink"
                           : "shadow-sm shadow-green-500/30 transition-colors"
                       }`}
                     >
                       <MessageSquare className="w-4 h-4" />
-                      {order.status === "CONFIRMED" && !whatsappSent
+                      {justActioned === "confirmed" && !whatsappSent
                         ? "⚡ Envoyer notif WhatsApp"
                         : "Envoyer notif WhatsApp"}
                     </button>
@@ -543,13 +582,31 @@ const AdminOrderDetail = () => {
                                 : "bg-gray-300 dark:bg-gray-600"
                         }`}
                       ></div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">
                           {getStatusLabel(event.status)}
                         </p>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-0.5">
                           {formatDate(event.createdAt)}
                         </p>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {event.actorUsername ? (
+                            <>
+                              <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                                {event.actorUsername}
+                              </span>
+                              {event.actorRole && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getRoleBadgeClass(event.actorRole)}`}>
+                                  {getRoleLabel(event.actorRole)}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded">
+                              🤖 Bot Telegram
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

@@ -12,8 +12,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.sucrestore.api.entity.CustomerPushSubscription;
 import com.sucrestore.api.entity.PushSubscription;
 import com.sucrestore.api.entity.User;
+import com.sucrestore.api.repository.CustomerPushSubscriptionRepository;
 import com.sucrestore.api.repository.PushSubscriptionRepository;
 import com.sucrestore.api.repository.UserRepository;
 import com.sucrestore.api.service.NotificationService;
@@ -31,6 +33,9 @@ public class NotificationController {
 
     @Autowired
     private PushSubscriptionRepository pushRepo;
+
+    @Autowired
+    private CustomerPushSubscriptionRepository customerPushRepo;
 
     @Autowired
     private UserRepository userRepository;
@@ -89,6 +94,41 @@ public class NotificationController {
             },
             () -> pushRepo.save(PushSubscription.builder()
                     .user(user)
+                    .endpoint(endpoint)
+                    .p256dh(keys.get("p256dh"))
+                    .auth(keys.get("auth"))
+                    .build())
+        );
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Souscription push PUBLIQUE pour les clients (sans compte).
+     * Liée au numéro de commande pour pouvoir notifier le client lors des changements de statut.
+     * POST /api/notifications/push/customer-subscribe
+     * Body: { orderNumber, endpoint, keys: { p256dh, auth } }
+     */
+    @PostMapping("/push/customer-subscribe")
+    public ResponseEntity<Void> customerSubscribe(@RequestBody Map<String, Object> body) {
+        String orderNumber = (String) body.get("orderNumber");
+        String endpoint    = (String) body.get("endpoint");
+        @SuppressWarnings("unchecked")
+        Map<String, String> keys = (Map<String, String>) body.get("keys");
+
+        if (orderNumber == null || endpoint == null || keys == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        customerPushRepo.findByEndpoint(endpoint).ifPresentOrElse(
+            existing -> {
+                existing.setOrderNumber(orderNumber);
+                existing.setP256dh(keys.get("p256dh"));
+                existing.setAuth(keys.get("auth"));
+                customerPushRepo.save(existing);
+            },
+            () -> customerPushRepo.save(CustomerPushSubscription.builder()
+                    .orderNumber(orderNumber)
                     .endpoint(endpoint)
                     .p256dh(keys.get("p256dh"))
                     .auth(keys.get("auth"))

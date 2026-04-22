@@ -10,6 +10,8 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.OrderRepository;
 import com.sucrestore.api.repository.OrderStatusHistoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
+import com.sucrestore.api.webhook.WebhookEventType;
+import com.sucrestore.api.webhook.WebhookService;
 
 /**
  * Service gérant la logique métier pour les commandes (Checkout).
@@ -60,6 +64,10 @@ public class OrderService {
     @Autowired
     @Lazy
     private TelegramService telegramService;
+
+    @Autowired
+    @Lazy
+    private WebhookService webhookService;
 
     /**
      * Traite une nouvelle commande invité. 1. Vérifie le stock. 2. Crée la
@@ -313,7 +321,7 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Order> getAllOrders(org.springframework.data.domain.Pageable pageable) {
-        return orderRepository.findAll(pageable);
+        return orderRepository.findByDeletedFalse(pageable);
     }
 
     /**
@@ -338,10 +346,22 @@ public class OrderService {
             order.setStatus(newStatus);
             Order savedOrder = orderRepository.save(order);
 
-            // Créer une entrée dans l'historique (sans admin pour le moment)
+            // Capturer l'acteur connecté (null si action automatique / Telegram)
+            String actorUsername = null;
+            String actorRole = null;
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                actorUsername = auth.getName();
+                actorRole = userRepository.findByUsername(actorUsername)
+                        .map(u -> u.getRole() != null ? u.getRole().name() : null)
+                        .orElse(null);
+            }
+
             OrderStatusHistory history = OrderStatusHistory.builder()
                     .order(savedOrder)
                     .status(newStatus)
+                    .actorUsername(actorUsername)
+                    .actorRole(actorRole)
                     .build();
             statusHistoryRepository.save(history);
 
@@ -365,10 +385,67 @@ public class OrderService {
                 }
             }
 
+            // Notification push client (CONFIRMED / REJECTED / CANCELLED)
+            if (newStatus == Order.Status.CONFIRMED
+                || newStatus == Order.Status.CANCELLED
+                || newStatus == Order.Status.REJECTED) {
+                try {
+                    String pushTitle = (newStatus == Order.Status.CONFIRMED)
+                        ? "✅ Commande confirmée"
+                        : (newStatus == Order.Status.REJECTED)
+                            ? "❌ Commande rejetée"
+                            : "❌ Commande annulée";
+                    String pushBody = (newStatus == Order.Status.CONFIRMED)
+                        ? "Votre commande #" + savedOrder.getOrderNumber() + " a été confirmée et est en cours de préparation."
+                        : (newStatus == Order.Status.REJECTED)
+                            ? "Votre commande #" + savedOrder.getOrderNumber() + " a été rejetée."
+                            : "Votre commande #" + savedOrder.getOrderNumber() + " a été annulée.";
+                    webPushService.notifyCustomer(savedOrder.getOrderNumber(), pushTitle, pushBody);
+                } catch (Exception e) {
+                    // Ne jamais bloquer le changement de statut
+                }
+            }
+
+            // Webhook vers l'application mobile de livraison
+            WebhookEventType webhookEvent = resolveWebhookEvent(newStatus);
+            if (webhookEvent != null) {
+                webhookService.sendAsync(webhookEvent, savedOrder);
+            }
+
             return savedOrder;
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Statut invalide : " + statusName);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Actions Admin explicites : accepter / rejeter
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * L'admin accepte une commande.
+     * Transition autorisée : PENDING -> CONFIRMED.
+     */
+    @Transactional
+    public Order acceptOrder(Long id) {
+        Order order = getOrderById(id);
+        if (order.getStatus() != Order.Status.PENDING) {
+            throw new RuntimeException("Impossible d'accepter (Statut: " + order.getStatus() + ")");
+        }
+        return updateOrderStatus(id, Order.Status.CONFIRMED.name());
+    }
+
+    /**
+     * L'admin rejette une commande.
+     * Transition autorisée : PENDING -> REJECTED.
+     */
+    @Transactional
+    public Order rejectOrder(Long id) {
+        Order order = getOrderById(id);
+        if (order.getStatus() != Order.Status.PENDING) {
+            throw new RuntimeException("Impossible de rejeter (Statut: " + order.getStatus() + ")");
+        }
+        return updateOrderStatus(id, Order.Status.REJECTED.name());
     }
 
     /**
@@ -396,25 +473,29 @@ public class OrderService {
 
         StringBuilder message = new StringBuilder();
         message.append("Bonjour,\n\n");
-        message.append("Votre commande #").append(order.getOrderNumber());
+        // N° remplace # pour éviter que le navigateur mobile interprète %23 comme un fragment d'URL
+        message.append("Votre commande N° ").append(order.getOrderNumber());
         if (order.getConfirmationCode() != null) {
             message.append(" (Code: ").append(order.getConfirmationCode()).append(")");
         }
-        message.append(" sur SUCRE STORE est actuellement : *").append(getStatusLabel(order.getStatus())).append("*\n\n");
+        // Pas de * autour du statut — évite les truncations WhatsApp sur mobile
+        message.append(" sur SUCRE STORE est actuellement : ").append(getStatusLabel(order.getStatus())).append("\n\n");
 
-        // Message personnalisé selon le statut
-        message.append(switch (order.getStatus()) {
-            case CONFIRMED ->
-                "Votre commande est en cours de préparation et sera bientôt livrée.";
-            case SHIPPED ->
-                "Votre commande est en cours de livraison.";
-            case DELIVERED ->
-                "Votre commande a été livrée avec succès. Merci de votre confiance !";
-            case CANCELLED ->
-                "Votre commande a été annulée. Pour plus d'informations, contactez-nous.";
-            default ->
-                "Nous vous tiendrons informé de l'évolution de votre commande.";
-        });
+        // Message personnalisé selon le statut (texte plain — sans markdown WhatsApp)
+        switch (order.getStatus()) {
+            case CONFIRMED -> message.append("Bonne nouvelle ! Votre commande est confirmee.\n\n")
+                .append("Elle est en cours de preparation et sera bientot livree.")
+                .append(order.getConfirmationCode() != null
+                    ? "\n\nCode de confirmation : " + order.getConfirmationCode() : "");
+            case SHIPPED -> message.append("Votre commande est en cours de livraison.\n\n")
+                .append("Notre livreur est en route. Tenez-vous pret !");
+            case DELIVERED -> message.append("Votre commande a ete livree avec succes.\n\n")
+                .append("Merci pour votre confiance. A tres bientot sur SUCRE STORE !");
+            case CANCELLED -> message.append("Nous avons le regret de vous informer que votre commande a ete annulee.\n\n")
+                .append("Nous nous excusons pour la gene occasionnee.\n")
+                .append("Pour toute information, n'hesitez pas a nous contacter.");
+            default -> message.append("Nous vous tiendrons informe de l'evolution de votre commande.");
+        }
 
         message.append("\n\nSUCRE STORE\n").append(whatsappNumber);
 
@@ -448,12 +529,11 @@ public class OrderService {
     }
 
     /**
-     * Génère un code de confirmation unique au format CONF-XXXX.
+     * Génère un code de confirmation unique composé de 4 chiffres.
      */
     private String generateConfirmationCode() {
-        // Format: CONF-1234 (4 chiffres aléatoires entre 1000 et 9999)
         int randomNumber = 1000 + (int) (Math.random() * 9000);
-        return "CONF-" + randomNumber;
+        return String.valueOf(randomNumber);
     }
 
     /**
@@ -474,6 +554,14 @@ public class OrderService {
             // Ignorer si format invalide
         }
         return null;
+    }
+
+    /**
+     * Retourne les 10 dernières commandes PENDING (pour le bot Telegram).
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Order> getLatestPendingOrders() {
+        return orderRepository.findTop10ByStatusOrderByIdDesc(Order.Status.PENDING);
     }
 
     /**
@@ -521,7 +609,16 @@ public class OrderService {
         order.setDeliveryAgent(agent);
         order.setStatus(Order.Status.SHIPPED); // En cours de livraison
 
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+
+        // Webhook "claim" (mise à jour instantanée côté mobile)
+        try {
+            webhookService.sendAsync(WebhookEventType.ORDER_CLAIMED, saved);
+        } catch (Exception e) {
+            // Best-effort : ne jamais bloquer la transaction.
+        }
+
+        return saved;
     }
 
     /**
@@ -545,7 +642,16 @@ public class OrderService {
         }
 
         order.setStatus(Order.Status.DELIVERED);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+
+        // Webhook "delivered" (complémentaire au polling)
+        try {
+            webhookService.sendAsync(WebhookEventType.ORDER_DELIVERED, saved);
+        } catch (Exception e) {
+            // Best-effort : ne jamais bloquer la transaction.
+        }
+
+        return saved;
     }
 
     /**
@@ -586,5 +692,20 @@ public class OrderService {
                 java.util.List.of(Order.Status.SHIPPED),
                 pageable
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helper : mappe un statut Order vers le type d'événement webhook
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private WebhookEventType resolveWebhookEvent(Order.Status status) {
+        return switch (status) {
+            case CONFIRMED  -> WebhookEventType.ORDER_CONFIRMED;
+            case SHIPPED    -> WebhookEventType.ORDER_IN_DELIVERY;
+            case DELIVERED  -> WebhookEventType.ORDER_DELIVERED;
+            case CANCELLED  -> WebhookEventType.ORDER_CANCELLED;
+            case REJECTED   -> WebhookEventType.ORDER_REJECTED;
+            default         -> null; // PENDING ne déclenche pas de webhook
+        };
     }
 }

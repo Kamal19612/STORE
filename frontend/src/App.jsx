@@ -1,7 +1,61 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect } from "react";
+
+// Désactiver le scroll restoration natif du navigateur une seule fois au démarrage.
+// Sans ça, le navigateur mobile restaure la position scrollée de l'URL précédente.
+if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
+
+function scrollAllToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  document.body.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  document.querySelectorAll("main").forEach((el) => {
+    el.scrollTop = 0;
+  });
+}
+
+// Remonte en haut à chaque changement de route.
+// 3 couches : useLayoutEffect (avant paint) + double RAF (après lazy render) + setTimeout 50ms (filet final).
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    scrollAllToTop();
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(scrollAllToTop)
+    );
+    const timer = setTimeout(scrollAllToTop, 50);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [pathname]);
+  return null;
+}
+
+// Relance automatique si un chunk JS (hash Vite) n'est plus disponible après un déploiement
+const lazyWithRetry = (factory) =>
+  lazy(() =>
+    factory().catch((err) => {
+      const isChunkError =
+        err?.name === "TypeError" ||
+        err?.message?.includes("Failed to fetch") ||
+        err?.message?.includes("is not a valid JavaScript MIME type") ||
+        err?.message?.includes("Importing a module script failed");
+      if (isChunkError) {
+        const lastReload = parseInt(localStorage.getItem("chunk_reload_at") || "0");
+        if (Date.now() - lastReload > 15000) {
+          localStorage.setItem("chunk_reload_at", String(Date.now()));
+          window.location.reload();
+          return new Promise(() => {});
+        }
+      }
+      throw err;
+    })
+  );
 import "./hooks/useInstallPWA"; // import eager pour enregistrer beforeinstallprompt tôt
 
 // Layouts (Eager load critical layouts)
@@ -13,33 +67,33 @@ import ManifestSwitcher from "./components/ManifestSwitcher";
 
 // Components
 // Pages - Code Splitting (Lazy Load)
-const Home = lazy(() => import("./pages/public/Home"));
-const Checkout = lazy(() => import("./pages/public/Checkout"));
-const Login = lazy(() => import("./pages/Login"));
+const Home = lazyWithRetry(() => import("./pages/public/Home"));
+const Checkout = lazyWithRetry(() => import("./pages/public/Checkout"));
+const Login = lazyWithRetry(() => import("./pages/Login"));
 
 // Admin Pages
-const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const AdminProductList = lazy(
+const AdminLogin = lazyWithRetry(() => import("./pages/admin/AdminLogin"));
+const AdminDashboard = lazyWithRetry(() => import("./pages/admin/AdminDashboard"));
+const AdminProductList = lazyWithRetry(
   () => import("./pages/admin/products/AdminProductList"),
 );
-const AdminProductForm = lazy(
+const AdminProductForm = lazyWithRetry(
   () => import("./pages/admin/products/AdminProductForm"),
 );
-const AdminOrderList = lazy(
+const AdminOrderList = lazyWithRetry(
   () => import("./pages/admin/orders/AdminOrderList"),
 );
-const AdminOrderDetail = lazy(
+const AdminOrderDetail = lazyWithRetry(
   () => import("./pages/admin/orders/AdminOrderDetail"),
 );
-const AdminSlider = lazy(() => import("./pages/admin/slider/AdminSlider"));
-const AdminUserList = lazy(() => import("./pages/admin/users/AdminUserList"));
-const AdminUserForm = lazy(() => import("./pages/admin/users/AdminUserForm"));
-const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
-const OrdersDiagnostic = lazy(() => import("./pages/admin/OrdersDiagnostic"));
+const AdminSlider = lazyWithRetry(() => import("./pages/admin/slider/AdminSlider"));
+const AdminUserList = lazyWithRetry(() => import("./pages/admin/users/AdminUserList"));
+const AdminUserForm = lazyWithRetry(() => import("./pages/admin/users/AdminUserForm"));
+const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
+const OrdersDiagnostic = lazyWithRetry(() => import("./pages/admin/OrdersDiagnostic"));
 
 // Delivery Pages
-const DeliveryDashboard = lazy(
+const DeliveryDashboard = lazyWithRetry(
   () => import("./pages/delivery/DeliveryDashboard"),
 );
 
@@ -64,6 +118,7 @@ function App() {
 
   return (
     <Router>
+      <ScrollToTop />
       <ManifestSwitcher />
       <ThemeProvider>
         <Suspense fallback={<PageLoader />}>

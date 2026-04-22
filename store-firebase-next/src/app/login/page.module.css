@@ -1,0 +1,150 @@
+.page {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 16px;
+}
+
+.card {
+  width: 100%;
+  max-width: 460px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
+.title {
+  font-family: var(--font-geist-sans);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-family: var(--font-geist-sans);
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 16px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.input {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 0 12px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #111827;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 1;
+}
+
+.btnSecondary {
+  background: white;
+  color: #111827;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: rgb(185, 28, 28);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  line-height: 18px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: rgba(10, 10, 10, 0.7);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .subtitle,
+  .note {
+    color: rgba(255, 255, 255, 0.65);
+  }
+  .label {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .input {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .btnSecondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .divider {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .divider::before,
+  .divider::after {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+

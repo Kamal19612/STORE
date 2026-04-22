@@ -4,6 +4,7 @@ import useAuthStore from "../store/authStore";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
+  timeout: 15000, // 15s — évite les requêtes qui pendent indéfiniment sur réseau mobile
 });
 
 // Intercepteur pour ajouter le token JWT si présent
@@ -25,7 +26,9 @@ api.interceptors.response.use(
 
       // Ne pas rediriger si déjà sur la page de login
       if (!currentPath.includes("/login")) {
-        useAuthStore.getState().logout();
+        // Effacer le state directement sans rappeler l'API (évite la cascade 401)
+        localStorage.removeItem("auth-storage");
+        useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
         window.location.href = "/login";
       }
     }

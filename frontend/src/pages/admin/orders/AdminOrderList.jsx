@@ -13,20 +13,17 @@ const AdminOrderList = () => {
 
   const navigate = useNavigate();
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await adminOrderService.getAllOrders(page);
 
-      // Extraction sécurisée des données
       let ordersArray = [];
       let pages = 1;
 
       if (Array.isArray(data)) {
-        // Réponse directe en tableau
         ordersArray = data;
       } else if (data && typeof data === "object") {
-        // Réponse paginée Spring Boot
         ordersArray = data.content || [];
         pages = data.totalPages || 1;
       }
@@ -35,21 +32,25 @@ const AdminOrderList = () => {
       setTotalPages(pages);
     } catch (error) {
       console.error("Erreur chargement commandes:", error);
-      toast.error(
-        `Impossible de charger les commandes: ${error.response?.data?.message || error.message}`,
-      );
+      if (!silent) {
+        toast.error(
+          `Impossible de charger les commandes: ${error.response?.data?.message || error.message}`,
+        );
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page]);
 
   // Rafraîchissement instantané à chaque nouvelle commande (via SSE du Layout)
-  useSseEvent("new_order", fetchOrders);
+  useSseEvent("new_order", () => fetchOrders(true));
 
-  // Chargement initial + polling 30s (filet de sécurité)
+  // Chargement initial + polling 30s silencieux (skip si onglet en arrière-plan)
   useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 30000);
+    fetchOrders(false);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchOrders(true);
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 

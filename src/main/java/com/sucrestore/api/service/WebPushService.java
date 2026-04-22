@@ -1,8 +1,10 @@
 package com.sucrestore.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sucrestore.api.entity.CustomerPushSubscription;
 import com.sucrestore.api.entity.PushSubscription;
 import com.sucrestore.api.entity.User;
+import com.sucrestore.api.repository.CustomerPushSubscriptionRepository;
 import com.sucrestore.api.repository.PushSubscriptionRepository;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
@@ -29,11 +31,15 @@ public class WebPushService {
     private static final String VAPID_SUBJECT     = "mailto:admin@sucrestore.socialracine.com";
 
     private final PushSubscriptionRepository repo;
+    private final CustomerPushSubscriptionRepository customerRepo;
     private final ObjectMapper objectMapper;
     private final PushService pushService;
 
-    public WebPushService(PushSubscriptionRepository repo, ObjectMapper objectMapper) throws Exception {
+    public WebPushService(PushSubscriptionRepository repo,
+                          CustomerPushSubscriptionRepository customerRepo,
+                          ObjectMapper objectMapper) throws Exception {
         this.repo = repo;
+        this.customerRepo = customerRepo;
         this.objectMapper = objectMapper;
 
         if (Security.getProvider("BC") == null) {
@@ -88,5 +94,42 @@ public class WebPushService {
 
     public void notifyDeliveryAgents(String title, String body, String tag) {
         notifyByRole(User.Role.DELIVERY_AGENT, title, body, tag);
+    }
+
+    /**
+     * Envoie une notification push au(x) appareil(s) du client associé à un numéro de commande.
+     */
+    public void notifyCustomer(String orderNumber, String title, String body) {
+        List<CustomerPushSubscription> subs = customerRepo.findByOrderNumber(orderNumber);
+        if (subs.isEmpty()) return;
+
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(Map.of(
+                "title", title,
+                "body",  body,
+                "tag",   "order-" + orderNumber
+            ));
+        } catch (Exception e) {
+            log.error("Erreur sérialisation payload push client", e);
+            return;
+        }
+
+        for (CustomerPushSubscription sub : subs) {
+            try {
+                Notification notification = new Notification(
+                    sub.getEndpoint(),
+                    sub.getP256dh(),
+                    sub.getAuth(),
+                    payload
+                );
+                pushService.send(notification);
+            } catch (Exception e) {
+                log.warn("Échec push client vers {} : {}", sub.getEndpoint(), e.getMessage());
+                if (e.getMessage() != null && e.getMessage().contains("410")) {
+                    customerRepo.delete(sub);
+                }
+            }
+        }
     }
 }

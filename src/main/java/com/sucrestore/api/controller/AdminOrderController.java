@@ -58,6 +58,22 @@ public class AdminOrderController {
     }
 
     /**
+     * PUT /api/admin/orders/{id}/accept : Accepter une commande (PENDING -> CONFIRMED).
+     */
+    @PutMapping("/{id}/accept")
+    public ResponseEntity<Order> accept(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.acceptOrder(id));
+    }
+
+    /**
+     * PUT /api/admin/orders/{id}/reject : Rejeter une commande (PENDING -> REJECTED).
+     */
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<Order> reject(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.rejectOrder(id));
+    }
+
+    /**
      * GET /api/admin/orders/{id}/history : Récupère l'historique des
      * changements de statut
      */

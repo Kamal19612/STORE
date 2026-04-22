@@ -6,38 +6,50 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
-/**
- * DTO pour les statistiques du dashboard admin
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class DashboardStatsResponse {
 
-    /**
-     * Nombre total de commandes
-     */
     private Long totalOrders;
-
-    /**
-     * Nombre total de produits
-     */
     private Long totalProducts;
-
-    /**
-     * Revenu total (somme de toutes les commandes)
-     */
     private BigDecimal totalRevenue;
 
-    /**
-     * Nombre de commandes en attente
-     */
     private Long pendingOrders;
-
-    /**
-     * Nombre de commandes confirmées
-     */
     private Long confirmedOrders;
+    private Long shippedOrders;
+    private Long deliveredOrders;
+    private Long cancelledOrders;
+
+    /** Statistiques journalières des 7 derniers jours */
+    private List<DailyStat> dailyStats;
+
+    /** 5 commandes les plus récentes */
+    private List<RecentOrder> recentOrders;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DailyStat {
+        private String date;      // "lun.", "mar.", …
+        private Long orders;
+        private BigDecimal revenue;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecentOrder {
+        private Long id;
+        private String orderNumber;
+        private String customerName;
+        private BigDecimal total;
+        private String status;
+        private String createdAt;
+    }
 }

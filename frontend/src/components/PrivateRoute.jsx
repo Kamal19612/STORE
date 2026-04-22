@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import useAuthStore from "../store/authStore";
 
@@ -11,13 +11,23 @@ import useAuthStore from "../store/authStore";
  * @param {string[]} props.allowedRoles - Rôles autorisés (optionnel)
  */
 const PrivateRoute = ({ children, allowedRoles = [] }) => {
-  const { isAuthenticated, user, checkAuth } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
+  const [hydrated, setHydrated] = useState(
+    () => useAuthStore.persist?.hasHydrated?.() ?? true
+  );
 
-  // Vérifier l'authentification au montage
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    if (!hydrated) {
+      const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+      return unsub;
+    }
+  }, [hydrated]);
+
+  // Attendre que Zustand ait lu le localStorage avant de décider
+  if (!hydrated) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     // Rediriger vers login en conservant la destination souhaitée

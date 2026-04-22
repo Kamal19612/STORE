@@ -62,7 +62,7 @@ public class DeliveryController {
 
     /**
      * POST /api/delivery/orders/{id}/complete : Valider la livraison avec code.
-     * Body: { "code": "CONF-1234" }
+     * Body: { "code": "1234" }
      */
     @org.springframework.web.bind.annotation.PostMapping("/{id}/complete")
     public ResponseEntity<Order> completeDelivery(

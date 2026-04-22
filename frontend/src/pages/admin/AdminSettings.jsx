@@ -117,6 +117,24 @@ const AdminSettings = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Format international sans + (ex: 22670123456)</p>
               </div>
 
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg">
+                <label className="block text-sm font-bold text-blue-800 dark:text-blue-300 mb-1 flex items-center gap-1">
+                  Telegram Chat ID
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-700 text-[10px] font-bold" title="Identifiant du bot Telegram">i</span>
+                </label>
+                <input type="text" name="telegram_chat_id" value={settings.telegram_chat_id || ""} onChange={handleChange} placeholder="Ex: 5654423490" className={`${inputCls} font-mono border-blue-300 dark:border-blue-700`} />
+                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
+                  <p>Où recevez-vous les alertes de commandes via Telegram.</p>
+                  <p className="font-semibold">Comment trouver votre ID ?</p>
+                  <ol className="list-decimal ml-4 pl-1">
+                    <li>Ouvrez Telegram</li>
+                    <li>Cherchez le bot <strong>@userinfobot</strong></li>
+                    <li>Envoyez lui le message <code>/start</code></li>
+                    <li>Copiez l'ID (suite de chiffres) et collez-le ici.</li>
+                  </ol>
+                </div>
+              </div>
+
               <div>
                 <label className={labelCls}>Numéro de téléphone</label>
                 <input type="text" name="contact_phone" value={settings.contact_phone || ""} onChange={handleChange} placeholder="+225 07..." className={inputCls} />

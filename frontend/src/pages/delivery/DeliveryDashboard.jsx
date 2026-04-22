@@ -93,8 +93,8 @@ const DeliveryDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [settings, setSettings] = useState({});
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const endpoint = activeTab === "my-orders"
         ? "/delivery/orders/my-orders"
@@ -103,9 +103,9 @@ const DeliveryDashboard = () => {
       setOrders(response.data.content || []);
     } catch (error) {
       console.error(error);
-      toast.error("Erreur chargement des commandes");
+      if (!silent) toast.error("Erreur chargement des commandes");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setRefreshing(false);
     }
   }, [activeTab]);
@@ -120,25 +120,34 @@ const DeliveryDashboard = () => {
   }, []);
 
   // Rafraîchissement instantané à chaque nouvelle livraison (via SSE du Layout)
-  useSseEvent("new_delivery", fetchOrders);
+  useSseEvent("new_delivery", () => fetchOrders(true));
 
-  // Chargement initial + polling 30s (filet de sécurité)
+  // Chargement initial + polling 5s silencieux (skip si onglet en arrière-plan)
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(false);
     fetchSettings();
-    const interval = setInterval(fetchOrders, 30000);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchOrders(true);
+    }, 5000); // OPTIMISÉ: 30s → 5s pour détection instantanée
     return () => clearInterval(interval);
   }, [fetchOrders, fetchSettings]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchOrders();
+    fetchOrders(false);
   };
 
   const handleClaimOrder = async (id) => {
     try {
       await api.put(`/delivery/orders/${id}/claim`);
       toast.success("Commande prise en charge !");
+      
+      // 🔄 Refetch IMMÉDIATEMENT les commandes disponibles pour les autres livreurs
+      // Attendre 300ms pour que le backend finisse le traitement
+      setTimeout(async () => {
+        await fetchOrders(true); // Silent refresh
+      }, 300);
+      
       setActiveTab("my-orders"); // Switch to my orders automatically
     } catch (error) {
       toast.error(
@@ -158,7 +167,17 @@ const DeliveryDashboard = () => {
     try {
       await api.post(`/delivery/orders/${id}/complete`, { code });
       toast.success("Livraison validée ! 🎉");
-      fetchOrders();
+      
+      // 🔄 Refetch la liste actuelle + les commandes disponibles pour que d'autres livreurs la voient
+      fetchOrders(true); // Silent refresh (current tab)
+      
+      // Attendre un peu avant de refetch les commandes disponibles
+      setTimeout(async () => {
+        await fetchOrders(true);
+      }, 500);
+      
+      // Clear le code saisi
+      setValidationCode((prev) => ({ ...prev, [id]: "" }));
     } catch (error) {
       toast.error(
         "Erreur : " + (error.response?.data?.message || "Code incorrect"),
@@ -196,7 +215,7 @@ const DeliveryDashboard = () => {
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-lg mx-auto">
+    <div className="space-y-6 pb-24 max-w-lg w-full px-4 mx-auto">
       {/* Header Mobile */}
       <div className="flex items-center justify-between sticky top-0 bg-gray-100/95 backdrop-blur-sm z-10 py-2 -mx-4 px-4">
         <div>
@@ -395,10 +414,10 @@ const DeliveryDashboard = () => {
                 ) : (
                   <div className="space-y-4 pt-2">
                     {/* Grid Actions */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => callCustomer(order.customerPhone)}
-                        className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-100 text-gray-800 py-3 rounded-xl transition-all active:bg-gray-200"
+                        className="w-full flex flex-col items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-100 text-gray-800 py-3 rounded-xl transition-all active:bg-gray-200"
                       >
                         <Phone className="h-5 w-5 text-gray-600" />
                         <span className="text-xs font-bold">Appeler</span>

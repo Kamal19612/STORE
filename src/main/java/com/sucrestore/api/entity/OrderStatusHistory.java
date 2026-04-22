@@ -54,9 +54,22 @@ public class OrderStatusHistory {
     /**
      * Administrateur ayant effectué le changement (NULL si automatique)
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
+
+    /**
+     * Nom d'utilisateur de l'acteur (dénormalisé pour éviter les jointures et la suppression de compte)
+     */
+    @Column(length = 100)
+    private String actorUsername;
+
+    /**
+     * Rôle de l'acteur au moment de l'action
+     */
+    @Column(length = 50)
+    private String actorRole;
 
     /**
      * Date et heure du changement de statut

@@ -3,9 +3,11 @@ spring:
     restart:
       enabled: false   # Désactivé : le restart classloader de DevTools brise le scan JPA des entités
   datasource:
-    url: jdbc:postgresql://localhost:5432/dbstore
+    # Utiliser Postgres Supabase exposé via docker-compose (5434 → supabase-db:${POSTGRES_PORT})
+    # Évite le pooler (5433) qui nécessite un tenant/user spécifique.
+    url: jdbc:postgresql://localhost:5434/postgres
     username: postgres
-    password: i27O6f6GaaJ2E7pbgLH3X3w
+    password: IvT72m6qYFM0uH84xau9uchS0FLGS3l
     driver-class-name: org.postgresql.Driver
   servlet:
     multipart:
@@ -25,8 +27,8 @@ app:
   jwt:
     # Clé secrète pour signer les tokens (Doit être longue et complexe)
     secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
-    # Durée de vie du token en millisecondes (86400000 = 24 heures)
-    expiration: 86400000
+    # Durée de vie du token en millisecondes (604800000 = 7 jours)
+    expiration: 604800000
 
   # Numéro WhatsApp du vendeur pour les commandes (Format international sans +)
   whatsapp-number: "22607065363"
@@ -39,7 +41,18 @@ app:
 
   telegram:
     bot-token: "7594915018:AAHzHJYLBq8LLjIAxuKbxxASvAPoeREhNhg"
-    chat-id: "5654423490"
+    chat-id: "779413420"
+    webhook-url: "https://sucrestore.socialracine.com"
+    webhook-secret: "un-secret-de-ton-choix"
+
+  # Webhook → WebhookRelay → Supabase Realtime → app mobile
+  # Surcharge possible : WEBHOOK_RELAY_URL, WEBHOOK_SECRET, WEBHOOK_ENABLED
+  webhook:
+    relay-url: "${WEBHOOK_RELAY_URL:http://127.0.0.1:3001/webhook}"
+    secret: "${WEBHOOK_SECRET:change_me_avec_un_secret_fort}"
+    enabled: ${WEBHOOK_ENABLED:true}
+    # Même valeur que source_identifier dans Spirit (Sources externes) pour le multi-boutiques
+    source-identifier: "${WEBHOOK_SOURCE_IDENTIFIER:}"
 
 google:
   sheets:
@@ -50,7 +63,6 @@ google:
 
 server:
   port: 8081
-  # servlet:
-  # context-path: /api # RETIRÉ : Cause un double préfixe /api/api car les contrôleurs ont déjà @RequestMapping("/api")
+  shutdown: immediate   # Fermeture immédiate — évite le blocage par les connexions SSE longue durée
 
-  
+

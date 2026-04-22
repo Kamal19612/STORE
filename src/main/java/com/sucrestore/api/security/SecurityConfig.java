@@ -79,6 +79,8 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll() // Accès aux images sans authentification
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/api/telegram/webhook").permitAll()
+                        .requestMatchers("/api/notifications/push/customer-subscribe").permitAll()
                         // Tout le reste nécessite une authentification
                         .anyRequest().authenticated()
                 );

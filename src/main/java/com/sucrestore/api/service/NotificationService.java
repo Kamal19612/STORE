@@ -13,6 +13,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import jakarta.annotation.PreDestroy;
+
 /**
  * Service gérant les connexions SSE (Server-Sent Events) pour les
  * notifications temps réel vers l'admin et les livreurs.
@@ -129,5 +131,19 @@ public class NotificationService {
      */
     public int getActiveConnections() {
         return emitters.size();
+    }
+
+    /**
+     * Ferme toutes les connexions SSE à l'arrêt du serveur.
+     * Évite le blocage de l'arrêt gracieux par des emitters longue durée.
+     */
+    @PreDestroy
+    public void closeAll() {
+        log.info("Fermeture de {} connexions SSE...", emitters.size());
+        emitters.values().forEach(emitter -> {
+            try { emitter.complete(); } catch (Exception ignored) {}
+        });
+        emitters.clear();
+        userRoles.clear();
     }
 }
