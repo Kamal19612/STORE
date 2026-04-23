@@ -60,6 +60,40 @@ public class User {
     @Column(length = 20)
     private String phone;
 
+    // ── Identité livreur (CNIB) ─────────────────────────────────────────────
+
+    @Column(name = "first_name")
+    private String firstName;
+
+    @Column(name = "last_name")
+    private String lastName;
+
+    @Column(name = "birth_date")
+    private String birthDate;
+
+    @Column(name = "birth_place")
+    private String birthPlace;
+
+    /** 'M' | 'F' */
+    private String gender;
+
+    private String profession;
+
+    @Column(name = "cnib_national_id")
+    private String cnibNationalId;
+
+    @Column(name = "cnib_serial")
+    private String cnibSerial;
+
+    @Column(name = "cnib_issue_date")
+    private String cnibIssueDate;
+
+    @Column(name = "cnib_expiry_date")
+    private String cnibExpiryDate;
+
+    @Column(name = "cnib_ocr_text", columnDefinition = "TEXT")
+    private String cnibOcrText;
+
     /**
      * Rôle de l'utilisateur (définit les permissions)
      */

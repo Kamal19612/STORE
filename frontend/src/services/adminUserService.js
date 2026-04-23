@@ -24,6 +24,11 @@ const adminUserService = {
     await api.delete(`/admin/users/${id}`);
   },
 
+  getDeliveryAgentStatus: async (id) => {
+    const response = await api.get(`/admin/users/${id}/delivery-agent`);
+    return response.data;
+  },
+
   // Update Role Only (Legacy support or quick action)
   updateRole: async (id, role) => {
     const response = await api.put(`/admin/users/${id}/role`, { role });

@@ -32,6 +32,9 @@ public class AdminUserController {
     @Autowired
     private UserDetailsServiceImpl userService;
 
+    @Autowired
+    private com.sucrestore.api.repository.DeliveryAgentRepository deliveryAgentRepository;
+
     /**
      * GET /api/admin/users : Liste de tous les utilisateurs.
      */
@@ -67,5 +70,20 @@ public class AdminUserController {
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * GET /api/admin/users/{id}/delivery-agent : indique si le compte est provisionné
+     * dans Supabase Auth (mapping `public.delivery_agents`).
+     */
+    @GetMapping("/{id}/delivery-agent")
+    public ResponseEntity<Map<String, Object>> getDeliveryAgentStatus(@PathVariable Long id) {
+        String authUserId = deliveryAgentRepository.findAuthUserIdByStoreUserId(id);
+        return ResponseEntity.ok(
+            Map.of(
+                "provisioned", authUserId != null && !authUserId.isBlank(),
+                "authUserId", authUserId == null ? "" : authUserId
+            )
+        );
     }
 }

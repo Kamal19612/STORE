@@ -3,6 +3,8 @@ import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { ArrowLeft, Save, User, Lock, Mail, Shield, Phone } from "lucide-react";
 import { toast } from "react-toastify";
 import adminUserService from "../../../services/adminUserService";
+import Tesseract from "tesseract.js";
+import { parseBurkinaCnib } from "../../../utils/cnibOcrParser";
 
 const AdminUserForm = () => {
   const navigate = useNavigate();
@@ -16,12 +18,27 @@ const AdminUserForm = () => {
     password: "", // Only sent if changed
     role: "MANAGER",
     active: true,
+    // CNIB (driver identity)
+    firstName: "",
+    lastName: "",
+    birthDate: "",
+    birthPlace: "",
+    gender: "",
+    profession: "",
+    cnibNationalId: "",
+    cnibSerial: "",
+    cnibIssueDate: "",
+    cnibExpiryDate: "",
+    cnibOcrText: "",
   });
   const [phoneData, setPhoneData] = useState({
     code: "+226",
     number: "",
   });
   const [loading, setLoading] = useState(false);
+  const [cnibImage, setCnibImage] = useState(null);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [supabaseStatus, setSupabaseStatus] = useState(null);
 
   useEffect(() => {
     if (isEditMode) {
@@ -55,6 +72,19 @@ const AdminUserForm = () => {
       // Ideally should fetch fresh data if relying on URL
     }
   }, [isEditMode, location.state]);
+
+  useEffect(() => {
+    const loadStatus = async () => {
+      if (!isEditMode) return;
+      try {
+        const st = await adminUserService.getDeliveryAgentStatus(id);
+        setSupabaseStatus(st);
+      } catch (_) {
+        setSupabaseStatus(null);
+      }
+    };
+    loadStatus();
+  }, [id, isEditMode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -95,6 +125,38 @@ const AdminUserForm = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const isDriver = formData.role === "DELIVERY_AGENT";
+
+  const runOcr = async () => {
+    if (!cnibImage) return;
+    setOcrBusy(true);
+    try {
+      const { data } = await Tesseract.recognize(cnibImage, "fra");
+      const text = (data?.text || "").trim();
+      const parsed = parseBurkinaCnib(text);
+      setFormData((prev) => ({
+        ...prev,
+        lastName: parsed.lastName || prev.lastName,
+        firstName: parsed.firstNames || prev.firstName,
+        birthDate: parsed.birthDate || prev.birthDate,
+        birthPlace: parsed.birthPlace || prev.birthPlace,
+        gender: parsed.gender || prev.gender,
+        profession: parsed.profession || prev.profession,
+        cnibNationalId: parsed.nationalIdNumber || prev.cnibNationalId,
+        cnibSerial: parsed.cardSerial || prev.cnibSerial,
+        cnibIssueDate: parsed.issueDate || prev.cnibIssueDate,
+        cnibExpiryDate: parsed.expiryDate || prev.cnibExpiryDate,
+        cnibOcrText: text,
+      }));
+      toast.success("OCR terminé. Vérifiez les champs.");
+    } catch (err) {
+      console.error(err);
+      toast.error("OCR impossible. Essayez une photo plus nette.");
+    } finally {
+      setOcrBusy(false);
     }
   };
 
@@ -234,6 +296,191 @@ const AdminUserForm = () => {
               </div>
             </div>
           </div>
+
+          {isDriver && (
+            <div className="space-y-4 pt-2">
+              {isEditMode && (
+                <div
+                  className={`p-3 rounded-xl border ${
+                    supabaseStatus?.provisioned
+                      ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-900/50 dark:text-green-200"
+                      : "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-900/50 dark:text-amber-200"
+                  }`}
+                >
+                  <div className="font-semibold">
+                    Supabase Auth :{" "}
+                    {supabaseStatus?.provisioned ? "provisionné" : "non provisionné"}
+                  </div>
+                  {supabaseStatus?.authUserId && (
+                    <div className="text-xs opacity-80 mt-1">
+                      auth_user_id: {supabaseStatus.authUserId}
+                    </div>
+                  )}
+                  {!supabaseStatus?.provisioned && (
+                    <div className="text-xs opacity-80 mt-1">
+                      Astuce: ré-enregistrez le mot de passe et sauvegardez pour relancer le provisionnement.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+                <div className="font-semibold text-gray-800 dark:text-white mb-2">
+                  CNIB (OCR) — préremplissage
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  Importez une photo du recto de la CNIB puis lancez l’OCR. Vérifiez avant d’enregistrer.
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setCnibImage(e.target.files?.[0] || null)}
+                    className="block w-full text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={runOcr}
+                    disabled={!cnibImage || ocrBusy}
+                    className="px-4 py-2 rounded-lg bg-white dark:bg-[#1c191a] border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white disabled:opacity-60"
+                  >
+                    {ocrBusy ? "OCR..." : "Lire CNIB (OCR)"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Nom (CNIB)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Prénoms (CNIB)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    N° identifiant national
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cnibNationalId}
+                    onChange={(e) => setFormData({ ...formData, cnibNationalId: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    N° série carte
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cnibSerial}
+                    onChange={(e) => setFormData({ ...formData, cnibSerial: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Né(e) le
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.birthDate}
+                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                    placeholder="JJ/MM/AAAA"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Lieu de naissance
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.birthPlace}
+                    onChange={(e) => setFormData({ ...formData, birthPlace: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Sexe
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  >
+                    <option value="">—</option>
+                    <option value="M">M</option>
+                    <option value="F">F</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Profession
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.profession}
+                    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Délivrée le
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cnibIssueDate}
+                    onChange={(e) => setFormData({ ...formData, cnibIssueDate: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                    placeholder="JJ/MM/AAAA"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Expire le
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cnibExpiryDate}
+                    onChange={(e) => setFormData({ ...formData, cnibExpiryDate: e.target.value })}
+                    className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white"
+                    placeholder="JJ/MM/AAAA"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Texte OCR brut (debug)
+                </label>
+                <textarea
+                  value={formData.cnibOcrText}
+                  onChange={(e) => setFormData({ ...formData, cnibOcrText: e.target.value })}
+                  rows={4}
+                  className="w-full p-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#1c191a] text-gray-900 dark:text-white font-mono text-xs"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Active Status */}
           <div className="flex items-center gap-3 pt-2">

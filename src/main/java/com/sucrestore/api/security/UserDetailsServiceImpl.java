@@ -28,6 +28,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private com.sucrestore.api.service.SupabaseAdminService supabaseAdminService;
+
+    @Autowired
+    private com.sucrestore.api.repository.DeliveryAgentRepository deliveryAgentRepository;
+
     @Override
     @Transactional // Transactionnel car on pourrait charger des collections Lazy (ex: roles)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -91,7 +97,32 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+
+        // Provision Supabase Auth + mapping for delivery/admin accounts.
+        if (saved.getRole() == User.Role.DELIVERY_AGENT) {
+            try {
+                final String authUserId = supabaseAdminService.createAuthUser(
+                    saved.getEmail(),
+                    user.getPassword(), // password in clear from request
+                    true
+                );
+                deliveryAgentRepository.upsertDeliveryAgent(
+                    authUserId,
+                    saved.getId(),
+                    User.Role.DELIVERY_AGENT.name(),
+                    saved.isActive()
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    "Création Supabase Auth impossible pour ce livreur. " +
+                    "Vérifiez SUPABASE_SERVICE_ROLE_KEY et/ou l'email (déjà utilisé ?). " +
+                    "Détail: " + e.getMessage()
+                );
+            }
+        }
+
+        return saved;
     }
 
     @Transactional

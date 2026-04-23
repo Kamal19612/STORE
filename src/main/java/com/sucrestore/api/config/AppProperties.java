@@ -30,8 +30,7 @@ public class AppProperties {
     private String currency = "FCFA"; // Valeur par défaut
 
     private final Storage storage = new Storage();
-
-    private final Webhook webhook = new Webhook();
+    private final Supabase supabase = new Supabase();
 
     @Data
     public static class Storage {
@@ -39,27 +38,10 @@ public class AppProperties {
         private String location = "uploads";
     }
 
-    /**
-     * Valeurs par défaut quand les clés {@code webhook_*} ne sont pas encore
-     * renseignées dans {@code app_settings} (ex. premier démarrage ou CI).
-     * Peuvent être surchargées par variables d'environnement.
-     */
     @Data
-    public static class Webhook {
-
-        /** URL complète du POST (ex. http://127.0.0.1:3001/webhook). */
-        private String relayUrl = "http://127.0.0.1:3001/webhook";
-
-        /** Secret HMAC partagé avec WebhookRelay. */
-        private String secret = "change_me_avec_un_secret_fort";
-
-        /** Si aucune valeur en base, ce booléen s'applique (défaut : actif en dev). */
-        private boolean enabled = true;
-
-        /**
-         * Identifiant stable de cette boutique dans le JSON webhook (champ {@code source}),
-         * pour que l'app mobile rattache l'événement à la bonne entrée {@code external_sources}.
-         */
-        private String sourceIdentifier = "";
+    public static class Supabase {
+        private String url;
+        private String serviceRoleKey;
     }
+
 }

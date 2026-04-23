@@ -26,8 +26,6 @@ import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.OrderRepository;
 import com.sucrestore.api.repository.OrderStatusHistoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
-import com.sucrestore.api.webhook.WebhookEventType;
-import com.sucrestore.api.webhook.WebhookService;
 
 /**
  * Service gérant la logique métier pour les commandes (Checkout).
@@ -65,9 +63,7 @@ public class OrderService {
     @Lazy
     private TelegramService telegramService;
 
-    @Autowired
-    @Lazy
-    private WebhookService webhookService;
+    // Livraison mobile: lecture directe Supabase (Auth + RPC).
 
     /**
      * Traite une nouvelle commande invité. 1. Vérifie le stock. 2. Crée la
@@ -406,12 +402,6 @@ public class OrderService {
                 }
             }
 
-            // Webhook vers l'application mobile de livraison
-            WebhookEventType webhookEvent = resolveWebhookEvent(newStatus);
-            if (webhookEvent != null) {
-                webhookService.sendAsync(webhookEvent, savedOrder);
-            }
-
             return savedOrder;
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Statut invalide : " + statusName);
@@ -611,13 +601,6 @@ public class OrderService {
 
         Order saved = orderRepository.save(order);
 
-        // Webhook "claim" (mise à jour instantanée côté mobile)
-        try {
-            webhookService.sendAsync(WebhookEventType.ORDER_CLAIMED, saved);
-        } catch (Exception e) {
-            // Best-effort : ne jamais bloquer la transaction.
-        }
-
         return saved;
     }
 
@@ -643,13 +626,6 @@ public class OrderService {
 
         order.setStatus(Order.Status.DELIVERED);
         Order saved = orderRepository.save(order);
-
-        // Webhook "delivered" (complémentaire au polling)
-        try {
-            webhookService.sendAsync(WebhookEventType.ORDER_DELIVERED, saved);
-        } catch (Exception e) {
-            // Best-effort : ne jamais bloquer la transaction.
-        }
 
         return saved;
     }
@@ -694,18 +670,4 @@ public class OrderService {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helper : mappe un statut Order vers le type d'événement webhook
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private WebhookEventType resolveWebhookEvent(Order.Status status) {
-        return switch (status) {
-            case CONFIRMED  -> WebhookEventType.ORDER_CONFIRMED;
-            case SHIPPED    -> WebhookEventType.ORDER_IN_DELIVERY;
-            case DELIVERED  -> WebhookEventType.ORDER_DELIVERED;
-            case CANCELLED  -> WebhookEventType.ORDER_CANCELLED;
-            case REJECTED   -> WebhookEventType.ORDER_REJECTED;
-            default         -> null; // PENDING ne déclenche pas de webhook
-        };
-    }
 }
