@@ -48,8 +48,8 @@ app:
   # Supabase Auth (admin API) — utilisé pour provisionner les comptes livreurs.
   # IMPORTANT: ne jamais exposer la service_role key au frontend.
   supabase:
-    url: ${SUPABASE_URL:https://spdelivery.socialracine.com}
-    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    url: ${SUPABASE_URL:http://127.0.0.1:8000}
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc1ODQ2MzQ0LCJleHAiOjIwOTEyMDYzNDR9.FENP9n2K3QjYlOVMGSeix9XuqPo9ooE3KAo7oYZKFIs}
 
 google:
   sheets:
