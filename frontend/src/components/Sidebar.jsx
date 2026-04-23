@@ -4,6 +4,8 @@ import {
   createContext,
   useContext,
   useMemo,
+  useEffect,
+  useRef,
   memo,
 } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -29,9 +31,20 @@ export default function Sidebar({ user, logout, isMobileOpen, onMobileClose }) {
   const [expanded, setExpanded] = useState(true);
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const asideRef = useRef(null);
 
   // On mobile the drawer is always "expanded" (shows icons + labels)
   const isDesktopCollapsed = !expanded;
+
+  // Avoid aria-hidden warnings: never keep focus inside a hidden drawer.
+  useEffect(() => {
+    if (isMobileOpen) return;
+    const asideEl = asideRef.current;
+    const activeEl = document.activeElement;
+    if (asideEl && activeEl && asideEl.contains(activeEl) && typeof activeEl.blur === "function") {
+      activeEl.blur();
+    }
+  }, [isMobileOpen]);
 
   const menuItems = useMemo(() => {
     const items = [
@@ -74,6 +87,7 @@ export default function Sidebar({ user, logout, isMobileOpen, onMobileClose }) {
       <SidebarContext.Provider value={contextValue}>
         {/* Sidebar - Drawer on mobile, static on desktop */}
         <aside
+          ref={asideRef}
           className={`
             fixed lg:static inset-y-0 left-0 z-50 flex flex-col
             bg-white dark:bg-[#242021]
@@ -85,6 +99,7 @@ export default function Sidebar({ user, logout, isMobileOpen, onMobileClose }) {
             ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
           `}
           aria-hidden={isMobileOpen ? undefined : true}
+          {...(!isMobileOpen ? { inert: "" } : {})}
         >
           {/* Header (Logo) */}
           <div className="flex items-center px-3 h-16 shrink-0 relative overflow-hidden">

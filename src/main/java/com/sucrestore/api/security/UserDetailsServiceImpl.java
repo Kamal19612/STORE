@@ -37,9 +37,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional // Transactionnel car on pourrait charger des collections Lazy (ex: roles)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Recherche l'utilisateur dans la BDD par son username
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé avec le nom d'utilisateur : " + username));
+        // Accepte la connexion via username OU email (l'UI affiche souvent un email)
+        User user = userRepository.findByUsernameOrEmail(username, username)
+                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
 
         // Retourne un objet User de Spring Security (et non notre Entité User)
         return new org.springframework.security.core.userdetails.User(
@@ -96,7 +96,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        final String rawPassword = user.getPassword();
+        user.setPassword(passwordEncoder.encode(rawPassword));
         User saved = userRepository.save(user);
 
         // Provision Supabase Auth + mapping for delivery/admin accounts.
@@ -104,7 +105,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             try {
                 final String authUserId = supabaseAdminService.createAuthUser(
                     saved.getEmail(),
-                    user.getPassword(), // password in clear from request
+                    rawPassword, // password in clear from request
                     true
                 );
                 deliveryAgentRepository.upsertDeliveryAgent(

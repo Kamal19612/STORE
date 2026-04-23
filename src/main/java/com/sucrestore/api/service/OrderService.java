@@ -361,6 +361,20 @@ public class OrderService {
                     .build();
             statusHistoryRepository.save(history);
 
+            // Notification temps réel pour les admins (mise à jour statut)
+            try {
+                Map<String, Object> statusData = Map.of(
+                        "id", savedOrder.getId(),
+                        "orderNumber", savedOrder.getOrderNumber(),
+                        "status", newStatus.name(),
+                        "actorUsername", actorUsername,
+                        "actorRole", actorRole
+                );
+                notificationService.notifyAdmins("order_status", statusData);
+            } catch (Exception e) {
+                // Ne jamais bloquer le changement de statut
+            }
+
             // Notification livreurs quand une commande est confirmée (disponible à livrer)
             if (newStatus == Order.Status.CONFIRMED) {
                 try {

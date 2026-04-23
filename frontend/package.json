@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "concurrently -n FRONT,BACK -c blue,green \"npm run frontend\" \"npm run backend\"",
     "frontend": "vite --host 0.0.0.0",
-    "backend": "cd ../ && mvn spring-boot:run",
+    "backend": "cd ../ && bash -c '. ./scripts/load-supabase-env.sh && mvn spring-boot:run'",
     "prod": "concurrently -n FRONT,BACK -c blue,green \"npm run frontend:prod\" \"npm run backend:prod\"",
     "frontend:prod": "vite preview --host 0.0.0.0 --port 4173",
-    "backend:prod": "cd ../ && java -jar target/sucre-store-api-0.0.1-SNAPSHOT.jar",
+    "backend:prod": "cd ../ && bash -c '. ./scripts/load-supabase-env.sh && exec java -jar target/sucre-store-api-0.0.1-SNAPSHOT.jar'",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

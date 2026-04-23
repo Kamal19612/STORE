@@ -1,6 +1,9 @@
 package com.sucrestore.api.security;
 
 import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 import org.slf4j.Logger;
@@ -64,7 +67,34 @@ public class JwtUtils {
      * @return La clé cryptographique pour signer le token.
      */
     private Key key() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(appProperties.getJwt().getSecret()));
+        final String secret = appProperties.getJwt().getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT secret is missing (app.jwt.secret).");
+        }
+
+        // Compat: support secrets provided as Base64 / Base64URL, or as a raw string.
+        // Some environments generate secrets containing '-' / '_' (base64url) which break strict base64 decoding.
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+        } catch (RuntimeException base64Err) {
+            try {
+                keyBytes = Decoders.BASE64URL.decode(secret);
+            } catch (RuntimeException base64UrlErr) {
+                keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+            }
+        }
+
+        // HS256 requires a 256-bit (32 bytes) key. If shorter, derive a fixed-length key via SHA-256.
+        if (keyBytes.length < 32) {
+            try {
+                keyBytes = MessageDigest.getInstance("SHA-256").digest(keyBytes);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 not available to derive JWT key", e);
+            }
+        }
+
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     /**

@@ -211,19 +211,61 @@ public class LocationController {
             if (cleanQuery.isEmpty())
                 cleanQuery = query;
 
-            double[] result = nominatimSearch(cleanQuery);
-            if (result != null)
-                return result;
+            // Try multiple candidates (Google place links can include noisy suffixes)
+            for (String candidate : buildGeocodeCandidates(cleanQuery)) {
+                double[] result = nominatimSearch(candidate);
+                if (result != null) return result;
+            }
 
             String noAccent = stripAccents(cleanQuery);
             if (!noAccent.equals(cleanQuery)) {
-                result = nominatimSearch(noAccent);
-                if (result != null)
-                    return result;
+                for (String candidate : buildGeocodeCandidates(noAccent)) {
+                    double[] result = nominatimSearch(candidate);
+                    if (result != null) return result;
+                }
             }
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    /**
+     * Nominatim est sensible au bruit. Les liens Google "place" peuvent contenir
+     * des segments non géographiques. On génère donc quelques variantes stables.
+     */
+    private java.util.List<String> buildGeocodeCandidates(String q) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        if (q == null) return java.util.List.of();
+
+        String base = q.trim();
+        if (base.isEmpty()) return java.util.List.of();
+
+        out.add(base);
+
+        // Replace "+", normalize spaces
+        String normalized = base.replace("+", " ").replaceAll("\\s+", " ").trim();
+        out.add(normalized);
+
+        // If comma-separated, try first parts (hotel name, then hotel+city)
+        String[] parts = normalized.split("\\s*,\\s*");
+        if (parts.length >= 1) {
+            out.add(parts[0].trim());
+        }
+        if (parts.length >= 2) {
+            out.add((parts[0] + ", " + parts[1]).trim());
+        }
+
+        // Burkina shorthand
+        out.add(normalized.replace("Burkina", "Burkina Faso"));
+
+        // Helpful for your dataset (lots of Ouagadougou links)
+        if (!normalized.toLowerCase().contains("ouagadougou")) {
+            out.add(normalized + ", Ouagadougou, Burkina Faso");
+        } else if (!normalized.toLowerCase().contains("burkina")) {
+            out.add(normalized + ", Burkina Faso");
+        }
+
+        return new java.util.ArrayList<>(out);
     }
 
     private String stripAccents(String text) {

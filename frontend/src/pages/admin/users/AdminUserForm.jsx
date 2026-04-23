@@ -107,8 +107,11 @@ const AdminUserForm = () => {
       navigate("/admin/users");
     } catch (error) {
       console.error("User Form Error:", error);
+      console.error("API response:", error.response?.status, error.response?.data);
+      const status = error.response?.status;
+      const data = error.response?.data;
       const msg =
-        error.response?.data?.message ||
+        (typeof data === "string" ? data : data?.message) ||
         error.message ||
         "Erreur enregistrement";
 
@@ -116,12 +119,13 @@ const AdminUserForm = () => {
         toast.error(
           "Erreur Extension Navigateur (Réessayez en navigation privée)",
         );
+      } else if (status === 403) {
+        // Vrai refus Spring Security (ex: pas SUPER_ADMIN sur POST /admin/users)
+        toast.error("Permission refusée (Super Admin requis)");
       } else {
-        toast.error(
-          msg.includes("403")
-            ? "Permission refusée (Super Admin requis)"
-            : "Erreur: " + msg,
-        );
+        // IMPORTANT: ne pas se baser sur la présence de "403" dans le texte
+        // (ex: erreurs Supabase "403 not_admin" renvoyées en 400 par l'API).
+        toast.error("Erreur: " + msg);
       }
     } finally {
       setLoading(false);

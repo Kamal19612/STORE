@@ -25,12 +25,31 @@ const useAuthStore = create(
         // authData.roles est maintenant un tableau : ["ROLE_ADMIN", "ROLE_LIVREUR"]
         const roles = Array.isArray(authData.roles) ? authData.roles : [];
 
-        // On prend le premier rôle trouvé et on retire le préfixe "ROLE_" pour la compatibilité frontend
-        // Ex: "ROLE_ADMIN" -> "ADMIN"
-        let role = null;
-        if (roles.length > 0) {
-          role = roles[0].replace("ROLE_", "");
-        }
+        // IMPORTANT: ne pas prendre `roles[0]` (ordre non garanti).
+        // On choisit le rôle le plus élevé connu pour le frontend.
+        const pickPrimaryRole = (springRoles) => {
+          const normalized = springRoles
+            .filter(Boolean)
+            .map((r) => String(r).trim())
+            .map((r) => (r.startsWith("ROLE_") ? r.slice("ROLE_".length) : r));
+
+          const priority = [
+            "SUPER_ADMIN",
+            "ADMIN",
+            "MANAGER",
+            "DELIVERY_AGENT",
+            "CUSTOMER",
+          ];
+
+          for (const p of priority) {
+            if (normalized.includes(p)) return p;
+          }
+
+          // Fallback: premier rôle normalisé
+          return normalized.length ? normalized[0] : null;
+        };
+
+        const role = pickPrimaryRole(roles);
 
         const user = {
           username: authData.username,

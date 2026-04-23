@@ -47,9 +47,13 @@ app:
 
   # Supabase Auth (admin API) — utilisé pour provisionner les comptes livreurs.
   # IMPORTANT: ne jamais exposer la service_role key au frontend.
+  # Spring ne lit pas supabase/.env : en local, sourcez STORE/scripts/load-supabase-env.sh
+  # ou exportez SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + DB_PASSWORD (voir ce script).
   supabase:
     url: ${SUPABASE_URL:http://127.0.0.1:8000}
-    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc1ODQ2MzQ0LCJleHAiOjIwOTEyMDYzNDR9.FENP9n2K3QjYlOVMGSeix9XuqPo9ooE3KAo7oYZKFIs}
+    # OBLIGATOIRE en prod : SERVICE_ROLE_KEY depuis supabase/.env (pas ANON_KEY).
+    # Laisser vide par défaut évite d'appeler Supabase avec une mauvaise clé par erreur.
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
 
 google:
   sheets:

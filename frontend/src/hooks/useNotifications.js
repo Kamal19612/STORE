@@ -146,6 +146,31 @@ export function useNotifications(role) {
       } catch (_) {}
     });
 
+    es.addEventListener("order_status", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        // Exemple: "Commande #ORD-... confirmée"
+        const statusLabel = data.status === "CONFIRMED"
+          ? "confirmée"
+          : data.status === "CANCELLED"
+            ? "annulée"
+            : data.status === "REJECTED"
+              ? "rejetée"
+              : data.status === "SHIPPED"
+                ? "en livraison"
+                : data.status === "DELIVERED"
+                  ? "livrée"
+                  : String(data.status || "").toLowerCase();
+
+        toast.info(
+          `📦 Statut mis à jour : #${data.orderNumber} → ${statusLabel}`,
+          { autoClose: 6000 }
+        );
+
+        window.dispatchEvent(new CustomEvent("sse:order_status", { detail: data }));
+      } catch (_) {}
+    });
+
     es.addEventListener("connected", () => {
       console.info(`[SSE] Connecté au flux ${role}`);
     });
