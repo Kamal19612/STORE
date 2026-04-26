@@ -11,7 +11,10 @@ import nl.martijndwars.webpush.PushService;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
 
 import java.security.Security;
 import java.util.List;
@@ -26,18 +29,23 @@ public class WebPushService {
 
     private static final Logger log = LoggerFactory.getLogger(WebPushService.class);
 
-    private static final String VAPID_PUBLIC_KEY  = "BFgwMeEPKmjceqgeKQqezk_yyf_FLa7LTW7eul_0HnSMfPfPFnKwH-fSGjxCUU5cmiCAdIvqlTJkSGUBkhPgFCw";
-    private static final String VAPID_PRIVATE_KEY = "4TTR08LVeO1sYKIOoSvI84utCeybjsoENUGMt7HtzDQ";
-    private static final String VAPID_SUBJECT     = "mailto:admin@sucrestore.socialracine.com";
+    @Value("${app.webpush.vapid-public-key:}")
+    private String vapidPublicKey;
+
+    @Value("${app.webpush.vapid-private-key:}")
+    private String vapidPrivateKey;
+
+    @Value("${app.webpush.vapid-subject:}")
+    private String vapidSubject;
 
     private final PushSubscriptionRepository repo;
     private final CustomerPushSubscriptionRepository customerRepo;
     private final ObjectMapper objectMapper;
-    private final PushService pushService;
+    private PushService pushService;
 
     public WebPushService(PushSubscriptionRepository repo,
                           CustomerPushSubscriptionRepository customerRepo,
-                          ObjectMapper objectMapper) throws Exception {
+                          ObjectMapper objectMapper) {
         this.repo = repo;
         this.customerRepo = customerRepo;
         this.objectMapper = objectMapper;
@@ -45,16 +53,46 @@ public class WebPushService {
         if (Security.getProvider("BC") == null) {
             Security.addProvider(new BouncyCastleProvider());
         }
+    }
 
-        this.pushService = new PushService(VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT);
+    @PostConstruct
+    void init() {
+        if (vapidPublicKey == null || vapidPublicKey.isBlank()
+            || vapidPrivateKey == null || vapidPrivateKey.isBlank()
+            || vapidSubject == null || vapidSubject.isBlank()) {
+            log.warn("[NOTIF] channel=WEBPUSH order= status=SKIPPED error=missing_vapid_config");
+            this.pushService = null;
+            return;
+        }
+        try {
+            this.pushService = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject);
+        } catch (Exception e) {
+            log.warn("[NOTIF] channel=WEBPUSH order= status=FAIL error=pushservice_init_failed details={}", e.toString());
+            this.pushService = null;
+        }
     }
 
     /**
      * Envoie une notification push à tous les abonnés ayant le rôle donné.
      */
     public void notifyByRole(User.Role role, String title, String body, String tag) {
+        if (pushService == null) {
+            if (role == User.Role.DELIVERY_AGENT) {
+                log.warn(
+                    "[NOTIF] channel=WEBPUSH role=DELIVERY_AGENT status=SKIPPED error=missing_vapid_config (app.webpush.vapid-*)"
+                );
+            }
+            return;
+        }
         List<PushSubscription> subscriptions = repo.findByUserRole(role);
-        if (subscriptions.isEmpty()) return;
+        if (subscriptions.isEmpty()) {
+            if (role == User.Role.DELIVERY_AGENT) {
+                log.warn(
+                    "[NOTIF] channel=WEBPUSH role=DELIVERY_AGENT status=SKIPPED error=no_subscriptions (livreur must allow notifications on delivery web app)"
+                );
+            }
+            return;
+        }
 
         String payload;
         try {
@@ -88,8 +126,15 @@ public class WebPushService {
     }
 
     public void notifyAdmins(String title, String body, String tag) {
+        if (pushService == null) {
+            log.warn(
+                "[NOTIF] channel=WEBPUSH audience=admin status=SKIPPED error=missing_vapid_config (app.webpush.vapid-*)"
+            );
+            return;
+        }
         notifyByRole(User.Role.SUPER_ADMIN, title, body, tag);
-        notifyByRole(User.Role.ADMIN,       title, body, tag);
+        notifyByRole(User.Role.ADMIN, title, body, tag);
+        notifyByRole(User.Role.MANAGER, title, body, tag);
     }
 
     public void notifyDeliveryAgents(String title, String body, String tag) {

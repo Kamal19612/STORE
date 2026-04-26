@@ -204,7 +204,7 @@ const Checkout = () => {
           applyCoords(coords.lat, coords.lng, "manualLocationLink", value);
           toast.success("Coordonnées GPS extraites du Plus Code !");
         } else {
-          toast.error("Plus Code non reconnu. Vérifiez le format (ex: 9CXR+XVG, Ouagadougou).");
+          toast.error("Plus Code non reconnu. Astuce: ajoutez la ville (ex: 9CXR+XVG, Ouagadougou).");
         }
       });
       return true;

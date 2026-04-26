@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -49,7 +50,7 @@ public class TelegramWebhookController {
         @SuppressWarnings("unchecked")
         Map<String, Object> callbackQuery = (Map<String, Object>) update.get("callback_query");
         if (callbackQuery != null) {
-            java.util.concurrent.CompletableFuture.runAsync(() -> handleCallbackQuery(callbackQuery));
+            handleCallbackQueryAsync(callbackQuery);
             return ResponseEntity.ok().build();
         }
 
@@ -58,10 +59,28 @@ public class TelegramWebhookController {
         Map<String, Object> message = (Map<String, Object>) update.get("message");
         if (message != null) {
             String text = (String) message.getOrDefault("text", "");
-            java.util.concurrent.CompletableFuture.runAsync(() -> handleTextCommand(text.trim()));
+            handleTextCommandAsync(text.trim());
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    @Async("notificationExecutor")
+    void handleCallbackQueryAsync(Map<String, Object> callbackQuery) {
+        try {
+            handleCallbackQuery(callbackQuery);
+        } catch (Exception e) {
+            log.error("Erreur async callback Telegram: {}", e.toString());
+        }
+    }
+
+    @Async("notificationExecutor")
+    void handleTextCommandAsync(String text) {
+        try {
+            handleTextCommand(text);
+        } catch (Exception e) {
+            log.error("Erreur async commande Telegram: {}", e.toString());
+        }
     }
 
     // ── Gestion boutons inline ─────────────────────────────────────────────────

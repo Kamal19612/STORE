@@ -43,7 +43,7 @@ public class NotificationController {
     // ─── SSE ─────────────────────────────────────────────────────────────────
 
     @GetMapping(value = "/stream/admin", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'MANAGER')")
     public SseEmitter streamAdmin(Authentication authentication) {
         return subscribe(authentication);
     }

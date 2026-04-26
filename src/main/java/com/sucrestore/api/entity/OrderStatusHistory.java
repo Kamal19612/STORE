@@ -77,4 +77,10 @@ public class OrderStatusHistory {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Note optionnelle (ex: motif échec livraison, commentaire interne).
+     */
+    @Column(columnDefinition = "TEXT")
+    private String note;
 }

@@ -45,6 +45,11 @@ app:
     webhook-url: ${TELEGRAM_WEBHOOK_URL:}
     webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:}
 
+  webpush:
+    vapid-public-key: ${WEBPUSH_VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${WEBPUSH_VAPID_PRIVATE_KEY:}
+    vapid-subject: ${WEBPUSH_VAPID_SUBJECT:}
+
   # Supabase Auth (admin API) — utilisé pour provisionner les comptes livreurs.
   # IMPORTANT: ne jamais exposer la service_role key au frontend.
   # Spring ne lit pas supabase/.env : en local, sourcez STORE/scripts/load-supabase-env.sh
@@ -54,6 +59,15 @@ app:
     # OBLIGATOIRE en prod : SERVICE_ROLE_KEY depuis supabase/.env (pas ANON_KEY).
     # Laisser vide par défaut évite d'appeler Supabase avec une mauvaise clé par erreur.
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+
+  delivery:
+    # Secret HMAC pour sécuriser les webhooks (si vous utilisez un serveur relais).
+    webhook-hmac-secret: ${DELIVERY_WEBHOOK_HMAC_SECRET:}
+    # FCM : push sur téléphone (admin + manager + livreur). Même endpoint d'enregistrement : POST /api/delivery/devices/register
+    fcm:
+      enabled: ${FCM_ENABLED:false}
+      service-account-path: ${FCM_SERVICE_ACCOUNT_PATH:}
+      project-id: ${FCM_PROJECT_ID:}
 
 google:
   sheets:

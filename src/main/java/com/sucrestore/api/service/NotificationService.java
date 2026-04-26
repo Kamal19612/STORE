@@ -98,6 +98,7 @@ public class NotificationService {
     public void notifyAdmins(String eventType, Object data) {
         notifyByRole("ROLE_SUPER_ADMIN", eventType, data);
         notifyByRole("ROLE_ADMIN", eventType, data);
+        notifyByRole("ROLE_MANAGER", eventType, data);
     }
 
     /**

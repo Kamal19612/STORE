@@ -75,6 +75,35 @@ public class DeliveryController {
     }
 
     /**
+     * PATCH-like API (via PUT) pour le mobile: mise à jour de statut livraison.
+     *
+     * Body:
+     * - { "status": "CLAIMED" }                        -> claim
+     * - { "status": "DELIVERED", "code": "1234" }      -> complete
+     * - { "status": "FAILED", "reason": "..." }        -> annule (CANCELLED) avec note
+     */
+    @PutMapping("/{id}/livraison")
+    public ResponseEntity<Order> updateDeliveryStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload,
+            org.springframework.security.core.Authentication authentication) {
+        String username = authentication.getName();
+        String status = payload.getOrDefault("status", "").trim().toUpperCase();
+        return switch (status) {
+            case "CLAIMED" -> ResponseEntity.ok(orderService.claimOrder(id, username));
+            case "DELIVERED" -> {
+                String code = payload.get("code");
+                yield ResponseEntity.ok(orderService.completeDelivery(id, username, code != null ? code : ""));
+            }
+            case "FAILED" -> {
+                String reason = payload.getOrDefault("reason", "").trim();
+                yield ResponseEntity.ok(orderService.failDelivery(id, username, reason));
+            }
+            default -> ResponseEntity.badRequest().build();
+        };
+    }
+
+    /**
      * GET /api/delivery/orders/sync : Synchronisation des données (Mode
      * Offline). Query Param: lastSync (ISO string)
      */

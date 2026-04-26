@@ -18,6 +18,7 @@ import com.sucrestore.api.dto.auth.LoginRequest;
 import com.sucrestore.api.security.JwtUtils;
 
 import java.util.Map;
+import java.util.Optional;
 
 import jakarta.validation.Valid;
 
@@ -38,6 +39,9 @@ public class AuthController {
 
     @Autowired
     JwtUtils jwtUtils;
+
+    @Autowired
+    com.sucrestore.api.repository.UserRepository userRepository;
 
     /**
      * Endpoint de connexion (Login).
@@ -73,9 +77,31 @@ public class AuthController {
                 .map(item -> item.getAuthority())
                 .collect(java.util.stream.Collectors.toList());
 
-        return ResponseEntity.ok(new JwtResponse(jwt,
+        String simpleRole = roles.contains("ROLE_DELIVERY_AGENT") ? "livreur" : "admin";
+
+        Optional<com.sucrestore.api.entity.User> uOpt = userRepository.findByUsername(userDetails.getUsername());
+        Long livreurId = null;
+        String nom = userDetails.getUsername();
+        if (uOpt.isPresent()) {
+            var u = uOpt.get();
+            // Mobile: livreurId = user.id pour l'identité livreur
+            if (roles.contains("ROLE_DELIVERY_AGENT")) {
+                livreurId = u.getId();
+            }
+            String first = u.getFirstName() != null ? u.getFirstName().trim() : "";
+            String last = u.getLastName() != null ? u.getLastName().trim() : "";
+            String full = (first + " " + last).trim();
+            if (!full.isBlank()) nom = full;
+        }
+
+        return ResponseEntity.ok(new JwtResponse(
+                jwt,
                 userDetails.getUsername(),
-                roles));
+                roles,
+                simpleRole,
+                livreurId,
+                nom
+        ));
     }
 
     /**

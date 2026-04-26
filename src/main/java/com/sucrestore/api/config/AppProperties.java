@@ -31,6 +31,7 @@ public class AppProperties {
 
     private final Storage storage = new Storage();
     private final Supabase supabase = new Supabase();
+    private final Delivery delivery = new Delivery();
 
     @Data
     public static class Storage {
@@ -42,6 +43,37 @@ public class AppProperties {
     public static class Supabase {
         private String url;
         private String serviceRoleKey;
+    }
+
+    @Data
+    public static class Delivery {
+        /**
+         * Secret partagé pour signer les webhooks (HMAC-SHA256).
+         * Utilisé notamment si vous avez un serveur relais (webhook proxy) qui reçoit
+         * les événements côté internet et les transfère.
+         */
+        private String webhookHmacSecret;
+
+        private final Fcm fcm = new Fcm();
+
+        @Data
+        public static class Fcm {
+            /**
+             * Active/désactive les notifications FCM (mobile).
+             */
+            private boolean enabled = false;
+
+            /**
+             * Chemin du fichier service account Firebase (JSON).
+             * Exemple: /etc/secrets/firebase-service-account.json
+             */
+            private String serviceAccountPath;
+
+            /**
+             * Optionnel: project id Firebase (sinon lu depuis le JSON).
+             */
+            private String projectId;
+        }
     }
 
 }

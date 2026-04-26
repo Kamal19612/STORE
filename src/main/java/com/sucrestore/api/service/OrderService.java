@@ -8,6 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
@@ -23,15 +25,20 @@ import com.sucrestore.api.entity.Order;
 import com.sucrestore.api.entity.OrderItem;
 import com.sucrestore.api.entity.OrderStatusHistory;
 import com.sucrestore.api.entity.Product;
+import com.sucrestore.api.notification.NotificationChannel;
+import com.sucrestore.api.notification.NotificationRunner;
 import com.sucrestore.api.repository.OrderRepository;
 import com.sucrestore.api.repository.OrderStatusHistoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
+import com.sucrestore.api.entity.NotificationOutbox;
 
 /**
  * Service gérant la logique métier pour les commandes (Checkout).
  */
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     @Autowired
     private OrderRepository orderRepository;
@@ -52,6 +59,12 @@ public class OrderService {
     private com.sucrestore.api.repository.UserRepository userRepository;
 
     @Autowired
+    private NotificationRunner notificationRunner;
+
+    @Autowired
+    private NotificationOutboxService notificationOutboxService;
+
+    @Autowired
     @Lazy
     private NotificationService notificationService;
 
@@ -62,6 +75,10 @@ public class OrderService {
     @Autowired
     @Lazy
     private TelegramService telegramService;
+
+    @Autowired(required = false)
+    @Lazy
+    private FcmService fcmService;
 
     // Livraison mobile: lecture directe Supabase (Auth + RPC).
 
@@ -159,23 +176,78 @@ public class OrderService {
 
         // 6. Notifications : admin (SSE + Telegram) lors d'une nouvelle commande
         String currency = appProperties.getCurrency() != null ? appProperties.getCurrency() : "FCFA";
-        try {
-            Map<String, Object> notifData = Map.of(
-                    "id", savedOrder.getId(),
-                    "orderNumber", savedOrder.getOrderNumber(),
-                    "customerName", savedOrder.getCustomerName(),
-                    "total", savedOrder.getTotal(),
-                    "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
+        Map<String, Object> notifData = Map.of(
+                "id", savedOrder.getId(),
+                "orderNumber", savedOrder.getOrderNumber(),
+                "customerName", savedOrder.getCustomerName(),
+                "total", savedOrder.getTotal(),
+                "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
+        );
+
+        // IMPORTANT: ne pas mettre tous les canaux dans le même try/catch.
+        // Un échec WebPush/SSE ne doit pas empêcher Telegram/FCM.
+        final String ord = savedOrder.getOrderNumber();
+
+        // Outbox: enregistre les notifications externes (retry) avant exécution.
+        // SSE reste best-effort (temps réel) et n'est pas dans l'outbox.
+        var outWebPushAdmin = notificationOutboxService.enqueue(
+            NotificationOutbox.Channel.WEBPUSH,
+            NotificationOutbox.EventType.NEW_ORDER_ADMIN,
+            savedOrder.getId(),
+            ord,
+            Map.of()
+        );
+        var outTelegram = notificationOutboxService.enqueue(
+            NotificationOutbox.Channel.TELEGRAM,
+            NotificationOutbox.EventType.NEW_ORDER_ADMIN,
+            savedOrder.getId(),
+            ord,
+            Map.of()
+        );
+        NotificationOutbox outFcmAdmin = null;
+        if (fcmService != null) {
+            outFcmAdmin = notificationOutboxService.enqueue(
+                NotificationOutbox.Channel.FCM,
+                NotificationOutbox.EventType.NEW_ORDER_ADMIN,
+                savedOrder.getId(),
+                ord,
+                Map.of()
             );
-            notificationService.notifyAdmins("new_order", notifData);
-            webPushService.notifyAdmins(
+        }
+
+        notificationRunner.executeNotification(NotificationChannel.SSE, ord,
+            () -> notificationService.notifyAdmins("new_order", notifData));
+
+        var rWebPushAdmin = notificationRunner.executeNotification(NotificationChannel.WEBPUSH, ord,
+            () -> webPushService.notifyAdmins(
                 "🛒 Nouvelle commande",
-                "#" + savedOrder.getOrderNumber() + " — " + savedOrder.getCustomerName(),
-                "order-" + savedOrder.getOrderNumber()
-            );
-            telegramService.sendNewOrderNotification(savedOrder, currency);
-        } catch (Exception e) {
-            // Les notifications ne doivent jamais bloquer la commande
+                "#" + ord + " — " + savedOrder.getCustomerName(),
+                "order-" + ord
+            ));
+        if (rWebPushAdmin.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+            notificationOutboxService.markSent(outWebPushAdmin.getId());
+        } else if (rWebPushAdmin.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+            notificationOutboxService.markFailedAndScheduleRetry(outWebPushAdmin.getId(), rWebPushAdmin.error(), 1);
+        }
+
+        var rTelegram = notificationRunner.executeNotification(NotificationChannel.TELEGRAM, ord,
+            () -> telegramService.sendNewOrderNotification(savedOrder, currency));
+        if (rTelegram.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+            notificationOutboxService.markSent(outTelegram.getId());
+        } else if (rTelegram.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+            notificationOutboxService.markFailedAndScheduleRetry(outTelegram.getId(), rTelegram.error(), 1);
+        }
+
+        if (fcmService != null) {
+            var rFcmAdmin = notificationRunner.executeNotification(NotificationChannel.FCM, ord,
+                () -> fcmService.notifyAdminsNewOrder(savedOrder));
+            if (outFcmAdmin != null) {
+                if (rFcmAdmin.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+                    notificationOutboxService.markSent(outFcmAdmin.getId());
+                } else if (rFcmAdmin.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+                    notificationOutboxService.markFailedAndScheduleRetry(outFcmAdmin.getId(), rFcmAdmin.error(), 1);
+                }
+            }
         }
 
         return OrderResponse.builder()
@@ -362,36 +434,83 @@ public class OrderService {
             statusHistoryRepository.save(history);
 
             // Notification temps réel pour les admins (mise à jour statut)
-            try {
-                Map<String, Object> statusData = Map.of(
-                        "id", savedOrder.getId(),
-                        "orderNumber", savedOrder.getOrderNumber(),
-                        "status", newStatus.name(),
-                        "actorUsername", actorUsername,
-                        "actorRole", actorRole
+            Map<String, Object> statusData = Map.of(
+                    "id", savedOrder.getId(),
+                    "orderNumber", savedOrder.getOrderNumber(),
+                    "status", newStatus.name(),
+                    "actorUsername", actorUsername,
+                    "actorRole", actorRole
+            );
+            final String ord = savedOrder.getOrderNumber();
+            notificationRunner.executeNotification(NotificationChannel.SSE, ord,
+                () -> notificationService.notifyAdmins("order_status", statusData));
+
+            if (fcmService != null) {
+                final String actor = actorUsername;
+                // Outbox pour retry FCM statut
+                var outFcmStatus = notificationOutboxService.enqueue(
+                    NotificationOutbox.Channel.FCM,
+                    NotificationOutbox.EventType.ORDER_STATUS_ADMIN,
+                    savedOrder.getId(),
+                    ord,
+                    Map.of("actorUsername", actor == null ? "" : actor)
                 );
-                notificationService.notifyAdmins("order_status", statusData);
-            } catch (Exception e) {
-                // Ne jamais bloquer le changement de statut
+                var rFcmStatus = notificationRunner.executeNotification(NotificationChannel.FCM, ord,
+                    () -> fcmService.notifyAdminsOrderStatus(savedOrder, actor));
+                if (rFcmStatus.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+                    notificationOutboxService.markSent(outFcmStatus.getId());
+                } else if (rFcmStatus.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+                    notificationOutboxService.markFailedAndScheduleRetry(outFcmStatus.getId(), rFcmStatus.error(), 1);
+                }
             }
 
             // Notification livreurs quand une commande est confirmée (disponible à livrer)
             if (newStatus == Order.Status.CONFIRMED) {
-                try {
-                    Map<String, Object> notifData = Map.of(
-                            "id", savedOrder.getId(),
-                            "orderNumber", savedOrder.getOrderNumber(),
-                            "customerAddress", savedOrder.getCustomerAddress() != null ? savedOrder.getCustomerAddress() : "",
-                            "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
-                    );
-                    notificationService.notifyDeliveryAgents("new_delivery", notifData);
-                    webPushService.notifyDeliveryAgents(
+                Map<String, Object> deliveryData = Map.of(
+                        "id", savedOrder.getId(),
+                        "orderNumber", savedOrder.getOrderNumber(),
+                        "customerAddress", savedOrder.getCustomerAddress() != null ? savedOrder.getCustomerAddress() : "",
+                        "deliveryType", savedOrder.getDeliveryType() != null ? savedOrder.getDeliveryType() : ""
+                );
+                final String deliveryOrd = savedOrder.getOrderNumber();
+
+                notificationRunner.executeNotification(NotificationChannel.SSE, deliveryOrd,
+                    () -> notificationService.notifyDeliveryAgents("new_delivery", deliveryData));
+
+                var outWebPushDelivery = notificationOutboxService.enqueue(
+                    NotificationOutbox.Channel.WEBPUSH,
+                    NotificationOutbox.EventType.NEW_DELIVERY,
+                    savedOrder.getId(),
+                    deliveryOrd,
+                    Map.of()
+                );
+                var rWebPushDelivery = notificationRunner.executeNotification(NotificationChannel.WEBPUSH, deliveryOrd,
+                    () -> webPushService.notifyDeliveryAgents(
                         "🚚 Nouvelle livraison disponible",
-                        "Commande #" + savedOrder.getOrderNumber(),
-                        "delivery-" + savedOrder.getOrderNumber()
+                        "Commande #" + deliveryOrd,
+                        "delivery-" + deliveryOrd
+                    ));
+                if (rWebPushDelivery.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+                    notificationOutboxService.markSent(outWebPushDelivery.getId());
+                } else if (rWebPushDelivery.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+                    notificationOutboxService.markFailedAndScheduleRetry(outWebPushDelivery.getId(), rWebPushDelivery.error(), 1);
+                }
+
+                if (fcmService != null) {
+                    var outFcmDelivery = notificationOutboxService.enqueue(
+                        NotificationOutbox.Channel.FCM,
+                        NotificationOutbox.EventType.NEW_DELIVERY,
+                        savedOrder.getId(),
+                        deliveryOrd,
+                        Map.of()
                     );
-                } catch (Exception e) {
-                    // Ne jamais bloquer le changement de statut
+                    var rFcmDelivery = notificationRunner.executeNotification(NotificationChannel.FCM, deliveryOrd,
+                        () -> fcmService.notifyDeliveryAgentsNewDelivery(savedOrder));
+                    if (rFcmDelivery.status() == com.sucrestore.api.notification.NotificationResult.Status.SUCCESS) {
+                        notificationOutboxService.markSent(outFcmDelivery.getId());
+                    } else if (rFcmDelivery.status() == com.sucrestore.api.notification.NotificationResult.Status.FAIL) {
+                        notificationOutboxService.markFailedAndScheduleRetry(outFcmDelivery.getId(), rFcmDelivery.error(), 1);
+                    }
                 }
             }
 
@@ -412,7 +531,8 @@ public class OrderService {
                             : "Votre commande #" + savedOrder.getOrderNumber() + " a été annulée.";
                     webPushService.notifyCustomer(savedOrder.getOrderNumber(), pushTitle, pushBody);
                 } catch (Exception e) {
-                    // Ne jamais bloquer le changement de statut
+                    log.warn("[NOTIF] channel=WEBPUSH order={} status=FAIL error={}",
+                        savedOrder.getOrderNumber(), e.toString());
                 }
             }
 
@@ -615,6 +735,20 @@ public class OrderService {
 
         Order saved = orderRepository.save(order);
 
+        try {
+            Map<String, Object> statusData = Map.of(
+                "id", saved.getId(),
+                "orderNumber", saved.getOrderNumber(),
+                "status", saved.getStatus().name(),
+                "actorUsername", username,
+                "actorRole", "DELIVERY_AGENT"
+            );
+            notificationService.notifyAdmins("order_status", statusData);
+            if (fcmService != null) {
+                fcmService.notifyAdminsOrderStatus(saved, username);
+            }
+        } catch (Exception ignored) {}
+
         return saved;
     }
 
@@ -641,6 +775,62 @@ public class OrderService {
         order.setStatus(Order.Status.DELIVERED);
         Order saved = orderRepository.save(order);
 
+        try {
+            Map<String, Object> statusData = Map.of(
+                "id", saved.getId(),
+                "orderNumber", saved.getOrderNumber(),
+                "status", saved.getStatus().name(),
+                "actorUsername", username,
+                "actorRole", "DELIVERY_AGENT"
+            );
+            notificationService.notifyAdmins("order_status", statusData);
+            if (fcmService != null) {
+                fcmService.notifyAdminsOrderStatus(saved, username);
+            }
+        } catch (Exception ignored) {}
+
+        return saved;
+    }
+
+    /**
+     * Un livreur déclare un échec de livraison (motif optionnel).
+     * Stratégie: on passe à CANCELLED et on garde le motif dans l'historique.
+     */
+    @Transactional
+    public Order failDelivery(Long orderId, String username, String reason) {
+        Order order = getOrderById(orderId);
+
+        if (order.getDeliveryAgent() == null || !order.getDeliveryAgent().getUsername().equals(username)) {
+            throw new RuntimeException("Vous n'êtes pas assigné à cette commande.");
+        }
+        if (order.getStatus() != Order.Status.SHIPPED) {
+            throw new RuntimeException("Statut incorrect pour échec : " + order.getStatus());
+        }
+
+        order.setStatus(Order.Status.CANCELLED);
+        Order saved = orderRepository.save(order);
+
+        try {
+            OrderStatusHistory history = OrderStatusHistory.builder()
+                .order(saved)
+                .status(Order.Status.CANCELLED)
+                .actorUsername(username)
+                .actorRole("DELIVERY_AGENT")
+                .note(reason != null && !reason.isBlank() ? ("DELIVERY_FAILED: " + reason.trim()) : "DELIVERY_FAILED")
+                .build();
+            statusHistoryRepository.save(history);
+        } catch (Exception ignored) {}
+
+        try {
+            Map<String, Object> statusData = Map.of(
+                "id", saved.getId(),
+                "orderNumber", saved.getOrderNumber(),
+                "status", saved.getStatus().name(),
+                "note", reason != null ? reason : ""
+            );
+            notificationService.notifyAdmins("order_status", statusData);
+        } catch (Exception ignored) {}
+
         return saved;
     }
 
@@ -651,19 +841,6 @@ public class OrderService {
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Order> getAvailableDeliveryOrders(org.springframework.data.domain.Pageable pageable) {
         org.springframework.data.domain.Page<Order> page = orderRepository.findByStatusAndDeliveryAgentNull(Order.Status.CONFIRMED, pageable);
-
-        // Masquer les infos sensibles
-        // On modifie les objets avant de les renvoyer (Attention: s'ils sont gérés par Hibernate, 
-        // cela pourrait déclencher un update si on est dans une transaction active @Transactional.
-        // Ici readOnly=true, mais par sécurité on détache ou on ne save pas.)
-        // Une meilleure approche serait d'utiliser un DTO, mais pour aller vite on va "cleanser" la réponse.
-        // Hibernate ne fera pas d'update car on est en read-only (normalement).
-        page.getContent().forEach(o -> {
-            o.setCustomerPhone("Masqué");
-            o.setCustomerAddress("Zone: " + (o.getCustomerAddress().length() > 20 ? o.getCustomerAddress().substring(0, 20) + "..." : o.getCustomerAddress()));
-            // On laisse un bout d'adresse pour que le livreur sache si c'est dans sa zone
-        });
-
         return page;
     }
 

@@ -10,12 +10,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import com.sucrestore.api.service.AppSettingService;
 
@@ -37,14 +39,46 @@ public class TelegramService {
     @Autowired
     private AppSettingService appSettingService;
 
-    private String getEffectiveChatId() {
+    private record TelegramConfig(String token, String chatId, Source source) {
+        enum Source { DB, ENV }
+        boolean isComplete() { return token != null && !token.isBlank() && chatId != null && !chatId.isBlank(); }
+    }
+
+    private TelegramConfig resolveConfigPreferDb() {
         if (appSettingService != null) {
+            String dbToken = appSettingService.getSettingValue("telegram_bot_token").orElse("");
             String dbChatId = appSettingService.getSettingValue("telegram_chat_id").orElse("");
-            if (!dbChatId.isBlank()) {
-                return dbChatId;
+            if (!dbToken.isBlank() && !dbChatId.isBlank()) {
+                return new TelegramConfig(dbToken, dbChatId, TelegramConfig.Source.DB);
             }
         }
-        return defaultChatId;
+        return new TelegramConfig(botToken, defaultChatId, TelegramConfig.Source.ENV);
+    }
+
+    private TelegramConfig resolveEnvConfig() {
+        return new TelegramConfig(botToken, defaultChatId, TelegramConfig.Source.ENV);
+    }
+
+    // Compat interne (autres méthodes du service) : config préférée DB.
+    private String getEffectiveBotToken() {
+        return resolveConfigPreferDb().token();
+    }
+
+    private String getEffectiveChatId() {
+        return resolveConfigPreferDb().chatId();
+    }
+
+    private boolean isTelegramConfigError(HttpStatusCode status) {
+        // 401/403: token invalide / interdit
+        // 400: souvent "chat not found" / chat_id invalide / bot pas dans le chat / parse error
+        return status != null && (status.value() == 400 || status.value() == 401 || status.value() == 403);
+    }
+
+    private void logDbOverrideFallback(String operation, HttpStatusCode status, String responseBody) {
+        log.warn("[NOTIF] channel=TELEGRAM order= status=FAIL error=DB override suspected → fallback ENV op={} http={} body={}",
+            operation,
+            status != null ? status.value() : -1,
+            responseBody == null ? "" : responseBody);
     }
 
     @Value("${app.telegram.webhook-url:}")
@@ -55,16 +89,38 @@ public class TelegramService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    public boolean isConfigured() {
+        TelegramConfig cfg = resolveConfigPreferDb();
+        return cfg.isComplete();
+    }
+
+    /**
+     * Vérifie uniquement la validité du bot token via getMe.
+     * Ne requiert pas chat_id, ce qui évite les faux négatifs (bot pas dans le chat).
+     */
+    public boolean healthCheckTokenOnly() {
+        TelegramConfig cfg = resolveConfigPreferDb();
+        if (cfg.token() == null || cfg.token().isBlank()) return false;
+        try {
+            String url = TELEGRAM_API + cfg.token() + "/getMe";
+            String resp = restTemplate.getForObject(url, String.class);
+            return resp != null && resp.contains("\"ok\":true");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // --- Enregistrement du webhook au démarrage ---
 
     @EventListener(ApplicationReadyEvent.class)
     public void registerWebhookOnStartup() {
-        if (botToken.isBlank() || webhookUrl.isBlank()) {
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken.isBlank() || webhookUrl.isBlank()) {
             log.info("Telegram webhook non enregistré (bot-token ou webhook-url manquant)");
             return;
         }
         try {
-            String url = TELEGRAM_API + botToken + "/setWebhook";
+            String url = TELEGRAM_API + effectiveToken + "/setWebhook";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -85,46 +141,82 @@ public class TelegramService {
     // --- Notification nouvelle commande avec boutons ---
 
     public void sendNewOrderNotification(Order order, String currency) {
-        if (botToken.isBlank() || getEffectiveChatId().isBlank()) {
-            log.debug("Telegram non configuré — notification ignorée pour commande {}", order.getOrderNumber());
+        TelegramConfig cfg = resolveConfigPreferDb();
+        if (!cfg.isComplete()) {
+            log.warn(
+                "Telegram non configuré (bot-token ou chat-id vides après résolution env + app_settings) — notification ignorée pour commande {}",
+                order.getOrderNumber());
             return;
         }
         String message = buildNewOrderMessage(order, currency);
-        sendMessageWithButtons(message, order.getId());
+        sendMessageWithButtons(cfg, message, order.getId(), order.getOrderNumber());
     }
 
-    private void sendMessageWithButtons(String text, Long orderId) {
+    /**
+     * Envoie le message Telegram ; lève une exception si l'envoi échoue définitivement
+     * (permet à l'outbox / NotificationRunner de marquer FAIL et relancer).
+     */
+    private void sendMessageWithButtons(TelegramConfig cfg, String text, Long orderId, String orderNumber) {
         try {
-            String url = TELEGRAM_API + botToken + "/sendMessage";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            postSendMessageWithButtons(cfg, text, orderId, orderNumber);
+            log.info("[NOTIF] channel=TELEGRAM order={} status=SUCCESS", orderNumber);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("[NOTIF] channel=TELEGRAM order={} status=FAIL error=http_{} body={}",
+                orderNumber, status.value(), responseBody);
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("chat_id", getEffectiveChatId());
-            body.put("text", text);
-            body.put("parse_mode", "HTML");
-            body.put("reply_markup", Map.of(
-                "inline_keyboard", List.of(
-                    List.of(
-                        Map.of("text", "✅ VALIDER", "callback_data", "confirm_" + orderId),
-                        Map.of("text", "❌ ANNULER", "callback_data", "cancel_" + orderId)
-                    )
-                )
-            ));
-
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-            restTemplate.postForObject(url, request, String.class);
-            log.debug("Notification Telegram avec boutons envoyée pour commande {}", orderId);
+            if (cfg.source() == TelegramConfig.Source.DB && isTelegramConfigError(status)) {
+                TelegramConfig env = resolveEnvConfig();
+                if (env.isComplete()
+                    && (!env.token().equals(cfg.token()) || !env.chatId().equals(cfg.chatId()))) {
+                    logDbOverrideFallback("sendMessage", status, responseBody);
+                    try {
+                        postSendMessageWithButtons(env, text, orderId, orderNumber);
+                        log.info("[NOTIF] channel=TELEGRAM order={} status=SUCCESS (env fallback)", orderNumber);
+                        return;
+                    } catch (Exception ex) {
+                        throw new RuntimeException("Telegram sendMessage failed after ENV fallback: " + ex.getMessage(), ex);
+                    }
+                }
+            }
+            throw new RuntimeException("Telegram sendMessage failed: HTTP " + status.value() + " " + responseBody, e);
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Échec envoi notification Telegram : {}", e.getMessage());
+            log.warn("[NOTIF] channel=TELEGRAM order={} status=FAIL error={}", orderNumber, e.toString());
+            throw new RuntimeException("Telegram sendMessage failed: " + e.getMessage(), e);
         }
+    }
+
+    private void postSendMessageWithButtons(TelegramConfig cfg, String text, Long orderId, String orderNumber) {
+        String url = TELEGRAM_API + cfg.token() + "/sendMessage";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("chat_id", cfg.chatId());
+        body.put("text", text);
+        body.put("parse_mode", "HTML");
+        body.put("reply_markup", Map.of(
+            "inline_keyboard", List.of(
+                List.of(
+                    Map.of("text", "✅ VALIDER", "callback_data", "confirm_" + orderId),
+                    Map.of("text", "❌ ANNULER", "callback_data", "cancel_" + orderId)
+                )
+            )
+        ));
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+        restTemplate.postForObject(url, request, String.class);
     }
 
     // --- Répondre à un clic de bouton (retire le spinner Telegram) ---
 
     public void answerCallbackQuery(String callbackQueryId, String text) {
         try {
-            String url = TELEGRAM_API + botToken + "/answerCallbackQuery";
+            String effectiveToken = getEffectiveBotToken();
+            String url = TELEGRAM_API + effectiveToken + "/answerCallbackQuery";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -135,6 +227,10 @@ public class TelegramService {
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             restTemplate.postForObject(url, request, String.class);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("Échec answerCallbackQuery (status {}): {}", status.value(), responseBody);
         } catch (Exception e) {
             log.warn("Échec answerCallbackQuery : {}", e.getMessage());
         }
@@ -144,7 +240,8 @@ public class TelegramService {
 
     public void editMessageAfterAction(Long chatIdLong, Integer messageId, String newText) {
         try {
-            String url = TELEGRAM_API + botToken + "/editMessageText";
+            String effectiveToken = getEffectiveBotToken();
+            String url = TELEGRAM_API + effectiveToken + "/editMessageText";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -156,6 +253,10 @@ public class TelegramService {
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             restTemplate.postForObject(url, request, String.class);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("Échec editMessageText (status {}): {}", status.value(), responseBody);
         } catch (Exception e) {
             log.warn("Échec editMessageText : {}", e.getMessage());
         }
@@ -164,9 +265,10 @@ public class TelegramService {
     // --- Envoi d'un message texte simple ---
 
     public void sendText(String text) {
-        if (botToken.isBlank() || getEffectiveChatId().isBlank()) return;
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken.isBlank() || getEffectiveChatId().isBlank()) return;
         try {
-            String url = TELEGRAM_API + botToken + "/sendMessage";
+            String url = TELEGRAM_API + effectiveToken + "/sendMessage";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             Map<String, Object> body = new HashMap<>();
@@ -174,6 +276,10 @@ public class TelegramService {
             body.put("text", text);
             body.put("parse_mode", "HTML");
             restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("Échec sendText Telegram (status {}): {}", status.value(), responseBody);
         } catch (Exception e) {
             log.warn("Échec sendText Telegram : {}", e.getMessage());
         }
@@ -188,7 +294,8 @@ public class TelegramService {
     public void sendFollowUpWithWhatsApp(Long chatId, String orderNumber, String customerName,
                                          String customerPhone, String whatsappLink, boolean isConfirmed) {
         try {
-            String url = TELEGRAM_API + botToken + "/sendMessage";
+            String effectiveToken = getEffectiveBotToken();
+            String url = TELEGRAM_API + effectiveToken + "/sendMessage";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -215,6 +322,10 @@ public class TelegramService {
 
             restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
             log.debug("Follow-up WhatsApp Telegram envoyé pour commande {}", orderNumber);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("Échec follow-up WhatsApp Telegram (status {}): {}", status.value(), responseBody);
         } catch (Exception e) {
             log.warn("Échec follow-up WhatsApp Telegram : {}", e.getMessage());
         }
@@ -226,14 +337,15 @@ public class TelegramService {
      * Envoie la liste des commandes PENDING avec boutons VALIDER/ANNULER pour chacune.
      */
     public void sendPendingOrdersMenu(List<Order> orders, String currency) {
-        if (botToken.isBlank() || getEffectiveChatId().isBlank()) return;
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken.isBlank() || getEffectiveChatId().isBlank()) return;
         try {
             if (orders.isEmpty()) {
                 sendText("✅ Aucune commande en attente pour le moment.");
                 return;
             }
 
-            String url = TELEGRAM_API + botToken + "/sendMessage";
+            String url = TELEGRAM_API + effectiveToken + "/sendMessage";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -266,6 +378,10 @@ public class TelegramService {
             body.put("reply_markup", Map.of("inline_keyboard", keyboard));
 
             restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
+        } catch (HttpStatusCodeException e) {
+            HttpStatusCode status = e.getStatusCode();
+            String responseBody = e.getResponseBodyAsString();
+            log.warn("Échec sendPendingOrdersMenu Telegram (status {}): {}", status.value(), responseBody);
         } catch (Exception e) {
             log.warn("Échec sendPendingOrdersMenu Telegram : {}", e.getMessage());
         }

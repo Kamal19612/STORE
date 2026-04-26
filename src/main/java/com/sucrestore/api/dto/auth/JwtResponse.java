@@ -29,9 +29,40 @@ public class JwtResponse {
      */
     private java.util.List<String> roles;
 
+    /**
+     * Rôle simplifié pour le mobile: "admin" | "livreur"
+     */
+    private String role;
+
+    /**
+     * Identifiant livreur (user.id) si rôle livreur.
+     */
+    private Long livreurId;
+
+    /**
+     * Nom affiché (ex: "Dupont" ou "Prenom Nom").
+     */
+    private String nom;
+
     public JwtResponse(String accessToken, String username, java.util.List<String> roles) {
         this.token = accessToken;
         this.username = username;
         this.roles = roles;
+    }
+
+    public JwtResponse(
+        String accessToken,
+        String username,
+        java.util.List<String> roles,
+        String role,
+        Long livreurId,
+        String nom
+    ) {
+        this.token = accessToken;
+        this.username = username;
+        this.roles = roles;
+        this.role = role;
+        this.livreurId = livreurId;
+        this.nom = nom;
     }
 }

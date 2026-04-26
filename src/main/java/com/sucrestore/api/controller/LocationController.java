@@ -42,8 +42,10 @@ public class LocationController {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern JS_LOCATION = Pattern
             .compile("window\\.location(?:\\.href)?\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SHORT_GOOGLE = Pattern
-            .compile("(https?://)?(maps\\.app\\.goo\\.gl|goo\\.gl/maps)/([a-zA-Z0-9]+)");
+
+    // Plus Code (Open Location Code). Exemple: 9CXR+XVG ou 9FHH+Q75
+    private static final Pattern PLUS_CODE = Pattern.compile("([23456789CFGHJMPQRVWX]{4,8}\\+[23456789CFGHJMPQRVWX]{2,3})",
+            Pattern.CASE_INSENSITIVE);
 
     @GetMapping("/resolve-location")
     public ResponseEntity<Map<String, Object>> resolve(@RequestParam String url) {
@@ -54,7 +56,9 @@ public class LocationController {
 
             // Cas 1 : Plus Code ou texte brut
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                coords = geocodeWithNominatim(url.trim());
+                String raw = url.trim();
+                coords = decodePlusCodeIfPresent(raw);
+                if (coords == null) coords = geocodeWithNominatim(raw);
                 if (coords != null)
                     finalUrl = "https://www.google.com/maps?q=" + coords[0] + "," + coords[1];
             } else {
@@ -62,11 +66,14 @@ public class LocationController {
                 finalUrl = followRedirects(url, 10);
                 coords = extractCoordinates(finalUrl);
 
+                // Plus Code présent dans l'URL finale (souvent le cas avec maps.app.goo.gl → /maps/place/<PLUSCODE>...)
+                if (coords == null) coords = decodePlusCodeIfPresent(finalUrl);
+
                 // Fallback q param
                 if (coords == null) {
                     String q = extractQueryParam(finalUrl, "q");
                     if (q != null && !q.isEmpty())
-                        coords = geocodeWithNominatim(q);
+                        coords = decodePlusCodeIfPresent(q) != null ? decodePlusCodeIfPresent(q) : geocodeWithNominatim(q);
                 }
 
                 // Fallback place/dir
@@ -104,8 +111,8 @@ public class LocationController {
         for (int i = 0; i < maxHops; i++) {
             HttpURLConnection conn = (HttpURLConnection) new URL(current).openConnection();
             conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(4000);
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
             conn.setRequestProperty("User-Agent", USER_AGENT);
 
             int status = conn.getResponseCode();
@@ -117,7 +124,7 @@ public class LocationController {
                     break;
                 current = resolveUrl(current, location);
             } else if (status == 200) {
-                String body = readBody(conn, 16384);
+                String body = readBody(conn, 65536);
                 conn.disconnect();
 
                 // Redirection HTML/JS
@@ -278,8 +285,8 @@ public class LocationController {
             URL url = new URL("https://nominatim.openstreetmap.org/search?q=" + encoded
                     + "&format=json&limit=1&accept-language=fr");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(4000);
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
             conn.setRequestProperty("User-Agent", "SucreStoreApp/1.0");
             conn.setRequestProperty("Accept", "application/json");
 
@@ -302,5 +309,181 @@ public class LocationController {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    /**
+     * Décode un Plus Code (Open Location Code) en coordonnées (centre de cellule).
+     * Supporte les formats complets courants (ex: 9FHH+Q75) et la présence dans une URL.
+     */
+    private double[] decodePlusCodeIfPresent(String text) {
+        if (text == null) return null;
+        String candidate = text;
+        try {
+            // Les URLs contiennent souvent le "+" encodé en %2B
+            candidate = URLDecoder.decode(text, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+        Matcher m = PLUS_CODE.matcher(candidate.toUpperCase());
+        if (!m.find()) return null;
+        String code = m.group(1).toUpperCase();
+        try {
+            return decodeOpenLocationCodeWithFallback(code, candidate);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    // Implémentation minimale du décodage Open Location Code (sans dépendance externe).
+    // Référence: algorithme standard OLC (Google openlocationcode).
+    private double[] decodeOpenLocationCodeWithFallback(String code, String contextText) {
+        // Alphabet OLC
+        final String ALPHABET = "23456789CFGHJMPQRVWX";
+        final int ENCODING_BASE = 20;
+        final char SEPARATOR = '+';
+        final int SEPARATOR_POSITION = 8;
+
+        // Normalisation
+        String upper = code.toUpperCase().replaceAll("\\s+", "");
+        int sep = upper.indexOf(SEPARATOR);
+        if (sep < 0) throw new IllegalArgumentException("Invalid plus code (no '+')");
+
+        // Codes courts (ex: 9FHH+Q75) : tenter une récupération via une localisation de référence.
+        if (sep != SEPARATOR_POSITION) {
+            double[] ref = guessReferenceLocation(contextText);
+            if (ref == null) throw new IllegalArgumentException("Short plus code without reference");
+            String full = recoverNearestFullCode(upper, ref[0], ref[1]);
+            upper = full;
+            sep = upper.indexOf(SEPARATOR);
+            if (sep != SEPARATOR_POSITION) throw new IllegalArgumentException("Short plus code recovery failed");
+        }
+
+        String pairPart = upper.substring(0, sep);
+        String gridPart = upper.substring(sep + 1);
+
+        // Pair decoding (4 paires = 8 chars)
+        double latLo = -90.0, latHi = 90.0;
+        double lngLo = -180.0, lngHi = 180.0;
+        double latRes = 180.0, lngRes = 360.0;
+
+        for (int i = 0; i < pairPart.length(); i += 2) {
+            int latDigit = ALPHABET.indexOf(pairPart.charAt(i));
+            int lngDigit = ALPHABET.indexOf(pairPart.charAt(i + 1));
+            if (latDigit < 0 || lngDigit < 0) throw new IllegalArgumentException("Invalid plus code chars");
+
+            latRes /= ENCODING_BASE;
+            lngRes /= ENCODING_BASE;
+
+            latLo += latDigit * latRes;
+            lngLo += lngDigit * lngRes;
+            latHi = latLo + latRes;
+            lngHi = lngLo + lngRes;
+        }
+
+        // Grid refinement (jusqu'à 3 chars courants: ex Q75)
+        if (!gridPart.isEmpty()) {
+            final int GRID_ROWS = 5;
+            final int GRID_COLUMNS = 4;
+            for (int i = 0; i < gridPart.length() && i < 3; i++) {
+                int digit = ALPHABET.indexOf(gridPart.charAt(i));
+                if (digit < 0) throw new IllegalArgumentException("Invalid grid char");
+
+                double rowHeight = (latHi - latLo) / GRID_ROWS;
+                double colWidth = (lngHi - lngLo) / GRID_COLUMNS;
+
+                int row = digit / GRID_COLUMNS;
+                int col = digit % GRID_COLUMNS;
+
+                latLo = latLo + row * rowHeight;
+                lngLo = lngLo + col * colWidth;
+                latHi = latLo + rowHeight;
+                lngHi = lngLo + colWidth;
+            }
+        }
+
+        // Centre de cellule
+        return new double[] { (latLo + latHi) / 2.0, (lngLo + lngHi) / 2.0 };
+    }
+
+    /**
+     * Essaie de déduire une "référence" pour un Plus Code court depuis le texte (souvent une ville dans l'URL).
+     * Objectif: décoder les codes courts partagés par Google Maps (ex: 9FHH+Q75, Ouagadougou).
+     */
+    private double[] guessReferenceLocation(String text) {
+        if (text == null) return null;
+        String t = text.toLowerCase();
+
+        // Heuristique simple: vos liens contiennent souvent "Ouagadougou"
+        if (t.contains("ouagadougou")) {
+            double[] ref = nominatimSearch("Ouagadougou, Burkina Faso");
+            if (ref != null) return ref;
+        }
+        if (t.contains("burkina")) {
+            double[] ref = nominatimSearch("Burkina Faso");
+            if (ref != null) return ref;
+        }
+        return null;
+    }
+
+    /**
+     * Reconstitue un code complet (8 chars avant '+') à partir d'un code court et d'une référence (lat/lng).
+     * Implémentation minimaliste inspirée de l'algorithme OLC "recoverNearest".
+     */
+    private String recoverNearestFullCode(String shortCode, double refLat, double refLng) {
+        final char SEPARATOR = '+';
+        final int SEPARATOR_POSITION = 8;
+
+        String cleaned = shortCode.toUpperCase().replaceAll("\\s+", "");
+        int sep = cleaned.indexOf(SEPARATOR);
+        if (sep < 0) throw new IllegalArgumentException("Invalid short code");
+
+        String shortPair = cleaned.substring(0, sep);
+        String shortGrid = cleaned.substring(sep + 1);
+
+        // Encode la référence au niveau pair (8 chars), puis prend le préfixe manquant.
+        String refPairs = encodePairs8(refLat, refLng);
+        int missing = SEPARATOR_POSITION - shortPair.length();
+        if (missing <= 0) throw new IllegalArgumentException("Not a short code");
+
+        String fullPairs = refPairs.substring(0, missing) + shortPair;
+        return fullPairs + SEPARATOR + shortGrid;
+    }
+
+    /**
+     * Encode lat/lng en 8 caractères "pairs" OLC (sans '+', sans grid).
+     * Suffisant pour récupérer un préfixe de référence.
+     */
+    private String encodePairs8(double lat, double lng) {
+        final String ALPHABET = "23456789CFGHJMPQRVWX";
+        final int ENCODING_BASE = 20;
+
+        // Clamp (OLC exclut 90/180 exacts)
+        double adjLat = Math.min(89.999999, Math.max(-89.999999, lat));
+        double adjLng = Math.min(179.999999, Math.max(-179.999999, lng));
+
+        double latVal = adjLat + 90.0;
+        double lngVal = adjLng + 180.0;
+
+        StringBuilder out = new StringBuilder(8);
+        double latRes = 180.0;
+        double lngRes = 360.0;
+
+        for (int i = 0; i < 4; i++) {
+            latRes /= ENCODING_BASE;
+            lngRes /= ENCODING_BASE;
+
+            int latDigit = (int) Math.floor(latVal / latRes);
+            int lngDigit = (int) Math.floor(lngVal / lngRes);
+
+            // Garde-fou
+            latDigit = Math.max(0, Math.min(ENCODING_BASE - 1, latDigit));
+            lngDigit = Math.max(0, Math.min(ENCODING_BASE - 1, lngDigit));
+
+            out.append(ALPHABET.charAt(latDigit));
+            out.append(ALPHABET.charAt(lngDigit));
+
+            latVal -= latDigit * latRes;
+            lngVal -= lngDigit * lngRes;
+        }
+        return out.toString();
     }
 }
