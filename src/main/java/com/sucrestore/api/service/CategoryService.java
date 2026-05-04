@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.repository.CategoryRepository;
+import com.sucrestore.api.tenant.StoreContext;
 
 /**
  * Service gérant la logique métier pour les catégories.
@@ -25,13 +26,16 @@ public class CategoryService {
      */
     @Transactional(readOnly = true)
     public List<Category> getAllActiveCategories() {
-        return categoryRepository.findByActiveTrue();
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return categoryRepository.findByActiveTrueAndStoreId(storeId);
     }
 
     // --- Méthodes Admin ---
     @Transactional(readOnly = true)
     public List<Category> getAllCategories() {
-        return categoryRepository.findAll();
+        Long storeId = StoreContext.getStoreIdOrNull();
+        // Admin scoped: only categories of store
+        return categoryRepository.findByStoreId(storeId);
     }
 
     @Transactional

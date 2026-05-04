@@ -12,7 +12,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,12 +31,23 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+    @Index(name = "idx_users_store_id", columnList = "store_id"),
+    @Index(name = "idx_users_role", columnList = "role")
+})
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Store scope (tenant). For global roles (delivery), can be NULL.
+     * Nullable for backward compatibility until migrator attaches existing rows.
+     */
+    @ManyToOne
+    @JoinColumn(name = "store_id")
+    private Store store;
 
     /**
      * Nom d'utilisateur unique pour la connexion
@@ -140,7 +154,8 @@ public class User {
         SUPER_ADMIN, // Accès total
         ADMIN, // Accès à tout sauf suppression des autres admins
         MANAGER, // Gestion des commandes et produits uniquement
-        DELIVERY_AGENT, // Livreur : accès aux commandes à livrer
+        DELIVERY, // Livraison centralisée (global)
+        DELIVERY_AGENT, // Legacy: Livreur : accès aux commandes à livrer
         CUSTOMER      // Client : pour futur compte utilisateur
     }
 }

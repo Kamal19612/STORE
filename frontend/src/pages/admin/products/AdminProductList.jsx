@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -21,6 +21,7 @@ const AdminProductList = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState("");
@@ -28,6 +29,19 @@ const AdminProductList = () => {
   const debounceTimer = useRef(null);
 
   const navigate = useNavigate();
+
+  /**
+   * Par défaut : aligné sur le catalogue (actifs + ruptures même si active=false en base).
+   * Masqués sans cocher la case : désactivés avec encore du stock (retirés du catalogue).
+   * Case cochée : tout le catalogue retourné par l’API.
+   */
+  const visibleProducts = useMemo(() => {
+    if (showArchived) return products;
+    return products.filter((p) => {
+      const stock = Number(p.stock) || 0;
+      return p.active || stock < 1;
+    });
+  }, [products, showArchived]);
 
   // Debounce : attend 400ms après la dernière frappe avant de lancer la recherche
   const handleSearchChange = (e) => {
@@ -63,6 +77,8 @@ const AdminProductList = () => {
       try {
         await adminProductService.deleteProduct(id);
         toast.success("Produit supprimé (archivé) avec succès");
+        // Retirer de la liste courante pour feedback immédiat (si archivés non affichés)
+        setProducts((prev) => prev.filter((p) => p.id !== id));
         fetchProducts();
       } catch (error) {
         toast.error("Erreur lors de la suppression");
@@ -129,16 +145,27 @@ const AdminProductList = () => {
 
       {/* Search Bar */}
       <div className="bg-white dark:bg-[#242021] p-3 rounded-lg border border-gray-100 dark:border-white/10 mb-4">
-        <form onSubmit={handleSearch} className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Rechercher..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-[#1c191a] dark:text-white rounded-lg text-sm"
-            value={search}
-            onChange={handleSearchChange}
-          />
-        </form>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <form onSubmit={handleSearch} className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-[#1c191a] dark:text-white rounded-lg text-sm"
+              value={search}
+              onChange={handleSearchChange}
+            />
+          </form>
+          <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300 select-none">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="w-4 h-4"
+            />
+            Afficher masqués (inactifs avec stock)
+          </label>
+        </div>
       </div>
 
       {/* Mobile Card View */}
@@ -155,10 +182,10 @@ const AdminProductList = () => {
               </div>
             </div>
           ))
-        ) : products.length === 0 ? (
+        ) : visibleProducts.length === 0 ? (
           <div className="text-center py-8 text-gray-500">Aucun produit trouvé.</div>
         ) : (
-          products.map((product) => (
+          visibleProducts.map((product) => (
             <div key={product.id} className="bg-white dark:bg-[#242021] rounded-lg shadow-sm border border-gray-100 dark:border-white/10 p-3">
               <div className="flex gap-3">
                 <div className="h-16 w-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-[#1c191a] shrink-0">
@@ -201,7 +228,7 @@ const AdminProductList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-              {products.map((product) => (
+              {visibleProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
                   <td className="px-4 py-3">
                     <div className="h-10 w-10 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white p-1">
@@ -215,7 +242,15 @@ const AdminProductList = () => {
                     {product.stock > 0 ? <span className="text-green-600 font-bold">{product.stock}</span> : <span className="text-red-500 font-bold">Rupture</span>}
                   </td>
                   <td className="px-4 py-3 text-sm hidden sm:table-cell">
-                    {product.available ? <span className="text-green-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Actif</span> : <span className="text-gray-400 flex items-center gap-1"><XCircle className="h-3 w-3" /> Inactif</span>}
+                    {product.active ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" /> Actif
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 flex items-center gap-1">
+                        <XCircle className="h-3 w-3" /> Archivé
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">

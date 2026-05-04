@@ -1,24 +1,26 @@
 import { useState } from "react";
 import ProductDetailModal from "../product/ProductDetailModal";
 
+const SLOT_MOBILE = 102;
+const SLOT_SM = 124;
 
-const SLOT_MOBILE = 102; // 90px width + 12px margin
-const SLOT_SM     = 124; // 110px width + 14px margin
-
-const ProductCarouselStrip = ({ products }) => {
+export default function ProductCarouselStrip({ products }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  const visible = products.filter((p) => p.mainImage);
+  const safeProducts = Array.isArray(products)
+    ? products
+    : Array.isArray(products?.content)
+      ? products.content
+      : [];
+  const visible = safeProducts.filter((p) => p?.mainImage);
 
   if (visible.length === 0) return null;
 
-  // Assez de copies pour remplir >2× l'écran → toujours du contenu visible
-  const N       = visible.length;
+  const N = visible.length;
   const pxMobile = N * SLOT_MOBILE;
-  const pxSm     = N * SLOT_SM;
-  const copies  = Math.max(4, Math.ceil(1600 / pxMobile) + 1);
-  const items   = Array.from({ length: copies }, () => visible).flat();
-  const duration = Math.max(18, N * 2.5); // adaptatif
+  const pxSm = N * SLOT_SM;
+  const copies = Math.max(4, Math.ceil(1600 / pxMobile) + 1);
+  const items = Array.from({ length: copies }, () => visible).flat();
+  const duration = Math.max(18, N * 2.5);
 
   return (
     <>
@@ -28,17 +30,13 @@ const ProductCarouselStrip = ({ products }) => {
           width: max-content;
           animation: scrollStripMobile ${duration}s linear infinite;
         }
-        .strip-track:hover {
-          animation-play-state: paused;
-        }
+        .strip-track:hover { animation-play-state: paused; }
         @keyframes scrollStripMobile {
           from { transform: translate3d(0, 0, 0); }
           to   { transform: translate3d(-${pxMobile}px, 0, 0); }
         }
         @media (min-width: 640px) {
-          .strip-track {
-            animation-name: scrollStripSm;
-          }
+          .strip-track { animation-name: scrollStripSm; }
           @keyframes scrollStripSm {
             from { transform: translate3d(0, 0, 0); }
             to   { transform: translate3d(-${pxSm}px, 0, 0); }
@@ -54,13 +52,10 @@ const ProductCarouselStrip = ({ products }) => {
         @media (min-width: 640px) {
           .strip-item { width: 110px; margin-right: 14px; }
         }
-        .strip-item:hover {
-          transform: translateY(-4px);
-        }
+        .strip-item:hover { transform: translateY(-4px); }
       `}</style>
 
       <div className="mb-6">
-        {/* En-tête */}
         <div className="flex items-center gap-2 mb-3 px-1">
           <span
             className="w-1 h-5 rounded-full inline-block"
@@ -74,7 +69,6 @@ const ProductCarouselStrip = ({ products }) => {
           </h2>
         </div>
 
-        {/* Bande défilante */}
         <div
           className="overflow-hidden rounded-xl py-2"
           style={{ backgroundColor: "rgba(var(--primary-rgb), 0.06)" }}
@@ -82,12 +76,11 @@ const ProductCarouselStrip = ({ products }) => {
           <div className="strip-track">
             {items.map((product, index) => (
               <div
-                key={index}
+                key={`${product.id}-${index}`}
                 className="strip-item"
                 onClick={() => setSelectedProduct(product)}
                 title={product.name}
               >
-                {/* Grille fixe : image ronde + détails dans la même cellule */}
                 <div className="flex flex-col items-center gap-1 w-full">
                   <div
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 shadow-md shrink-0"
@@ -127,6 +120,4 @@ const ProductCarouselStrip = ({ products }) => {
       )}
     </>
   );
-};
-
-export default ProductCarouselStrip;
+}

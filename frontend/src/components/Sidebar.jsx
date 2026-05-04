@@ -57,8 +57,11 @@ export default function Sidebar({ user, logout, isMobileOpen, onMobileClose }) {
       items.push({ path: "/admin/slider", icon: ImageIcon, text: "Carrousel" });
     }
 
-    if (user?.role === "SUPER_ADMIN") {
+    if (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") {
       items.push({ path: "/admin/users", icon: Users, text: "Utilisateurs" });
+    }
+
+    if (user?.role === "SUPER_ADMIN") {
       items.push({
         path: "/admin/settings",
         icon: Settings,

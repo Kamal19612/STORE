@@ -37,6 +37,7 @@ public class SucreStoreApplication {
      * IMPORTANT: Changez ce mot de passe en production !
      */
     @org.springframework.context.annotation.Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnBean(name = "entityManagerFactory")
     public org.springframework.boot.CommandLineRunner initDefaultAdmin(
             com.sucrestore.api.repository.UserRepository userRepository,
             org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {

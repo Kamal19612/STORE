@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import api from "../services/api";
 
+const storeCode = import.meta.env.VITE_STORE_CODE || "sucre";
+
 /**
  * Store Zustand pour gérer l'état d'authentification
  * Persiste le token dans localStorage pour que la session survive
@@ -71,7 +73,7 @@ const useAuthStore = create(
       logout: async () => {
         // Évite un double-appel si déjà déconnecté
         if (!get().token) {
-          localStorage.removeItem("auth-storage");
+          localStorage.removeItem(`auth_${storeCode}`);
           set({ user: null, token: null, isAuthenticated: false });
           return;
         }
@@ -80,7 +82,7 @@ const useAuthStore = create(
         } catch (error) {
           console.error("Erreur déconnexion serveur (ignorée):", error);
         } finally {
-          localStorage.removeItem("auth-storage");
+          localStorage.removeItem(`auth_${storeCode}`);
           set({
             user: null,
             token: null,
@@ -112,7 +114,7 @@ const useAuthStore = create(
       setLoading: (loading) => set({ isLoading: loading }),
     }),
     {
-      name: "auth-storage",
+      name: `auth_${storeCode}`,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,

@@ -36,26 +36,34 @@ const ImportProductModal = ({ isOpen, onClose, onSuccess }) => {
       let fileToUpload = file;
 
       if (activeTab === "url") {
-        // Extraction de l'ID si c'est une URL complète
-        let spreadsheetId = url;
-        const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-        if (match && match[1]) {
-          spreadsheetId = match[1];
+        // Extraction de l'ID si c'est une URL complète (export CSV / API)
+        let spreadsheetId = url.trim();
+        const idMatch = spreadsheetId.match(
+          /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
+        );
+        if (idMatch && idMatch[1]) {
+          spreadsheetId = idMatch[1];
         }
+        const gidMatch = url.match(/[?&#]gid=(\d+)/);
+        const sheetGid = gidMatch && gidMatch[1] ? gidMatch[1] : undefined;
 
-        const result =
-          await adminProductService.importFromGoogleSheets(spreadsheetId);
+        const result = await adminProductService.importFromGoogleSheets(
+          spreadsheetId,
+          sheetGid,
+        );
         setSummary(result);
 
         if (result.successCount > 0) {
           toast.success(
-            `${result.successCount} produits importés via API Google Sheets !`,
+            `${result.successCount} produit(s) importé(s) depuis Google Sheets.`,
           );
           if (onSuccess) onSuccess();
         } else if (result.failureCount > 0) {
-          toast.warn(
-            "Aucun produit importé. Vérifiez l'ID et les permissions.",
-          );
+          const firstErr =
+            result.errorMessages && result.errorMessages[0]
+              ? ` ${result.errorMessages[0]}`
+              : "";
+          toast.warn(`Aucun produit importé.${firstErr}`);
         }
         setLoading(false);
         return; // Fin du traitement pour URL
@@ -190,7 +198,7 @@ const ImportProductModal = ({ isOpen, onClose, onSuccess }) => {
                         utilisateurs disposant du lien").
                       </p>
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-semibold">
-                        💡 N'oubliez pas d'ajouter l'email du compte de service en "Lecteur" sur votre Sheet : sucre-store-api@sucre-store-api.iam.gserviceaccount.com
+                        💡 Ajoutez l'email du compte de service Google configuré sur le backend en "Lecteur" sur votre Sheet (sinon l'API ne pourra pas lire le fichier).
                       </p>
                     </div>
                   </div>
@@ -209,7 +217,12 @@ const ImportProductModal = ({ isOpen, onClose, onSuccess }) => {
                   </p>
                   <div className="text-green-600 dark:text-green-400 text-sm grid grid-cols-2 gap-x-4">
                     <span>Traités : {summary.totalProcessed}</span>
-                    <span>Succès : {summary.successCount || (summary.createdCount + summary.updatedCount)}</span>
+                    <span>
+                      Succès :{" "}
+                      {summary.successCount != null
+                        ? summary.successCount
+                        : summary.createdCount + summary.updatedCount}
+                    </span>
                     <span>Créés : {summary.createdCount}</span>
                     <span>Mis à jour : {summary.updatedCount}</span>
                     {summary.deactivatedCount > 0 && (

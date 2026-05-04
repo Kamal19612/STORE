@@ -48,4 +48,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Trouve un utilisateur par son rôle.
      */
     Optional<User> findByRole(User.Role role);
+
+    // Multi-store scoped
+    java.util.List<User> findByStoreId(Long storeId);
 }

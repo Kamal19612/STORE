@@ -444,7 +444,7 @@ body {
   /* Generic cards - prevent image overflow (exclude slider + sidebar images) */
   .rounded-lg>img,
   .overflow-hidden:not(.slider-container):not(aside) img,
-  .product-card img {
+  .product-card .slider-container img {
     max-width: 100% !important;
     height: auto !important;
     display: block !important;
@@ -465,6 +465,15 @@ body {
   .bg-white img {
     max-width: 100% !important;
     height: auto !important;
+    display: block !important;
+  }
+
+  /* Product card images must keep the fixed container fill */
+  .product-card img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
     display: block !important;
   }
 

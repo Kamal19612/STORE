@@ -39,8 +39,9 @@ public class AdminImportController {
 
     @PostMapping({"/import-google-sheets", "/google-sheets-sync"})
     public ResponseEntity<ImportSummary> importFromGoogleSheets(
-            @RequestParam(value = "spreadsheetId", required = false) String spreadsheetId) {
-        return ResponseEntity.ok(googleSheetsService.fetchProducts(spreadsheetId));
+            @RequestParam(value = "spreadsheetId", required = false) String spreadsheetId,
+            @RequestParam(value = "sheetGid", required = false) Long sheetGid) {
+        return ResponseEntity.ok(googleSheetsService.fetchProducts(spreadsheetId, sheetGid));
     }
 
     /**

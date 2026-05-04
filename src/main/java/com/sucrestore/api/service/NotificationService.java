@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -24,8 +25,8 @@ public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
-    // username -> SseEmitter (une connexion active par utilisateur)
-    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    // username -> set de connexions SSE (plusieurs appareils par utilisateur)
+    private final Map<String, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     // username -> set de rôles Spring Security (ex: "ROLE_ADMIN")
     private final Map<String, Set<String>> userRoles = new ConcurrentHashMap<>();
@@ -34,19 +35,19 @@ public class NotificationService {
      * Abonne un utilisateur authentifié au flux SSE.
      */
     public SseEmitter subscribe(String username, Collection<String> roles) {
-        // Fermer l'ancienne connexion si l'utilisateur se reconnecte
-        SseEmitter existing = emitters.get(username);
-        if (existing != null) {
-            existing.complete();
-        }
-
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        emitters.put(username, emitter);
         userRoles.put(username, new HashSet<>(roles));
+        emitters.computeIfAbsent(username, k -> new CopyOnWriteArraySet<>()).add(emitter);
 
         Runnable cleanup = () -> {
-            emitters.remove(username, emitter);
-            userRoles.remove(username);
+            Set<SseEmitter> set = emitters.get(username);
+            if (set != null) {
+                set.remove(emitter);
+                if (set.isEmpty()) {
+                    emitters.remove(username);
+                    userRoles.remove(username);
+                }
+            }
             log.debug("SSE déconnecté : {}", username);
         };
 
@@ -76,17 +77,21 @@ public class NotificationService {
     public void notifyByRole(String role, String eventType, Object data) {
         userRoles.forEach((username, roles) -> {
             if (roles.contains(role)) {
-                SseEmitter emitter = emitters.get(username);
-                if (emitter != null) {
+                Set<SseEmitter> set = emitters.get(username);
+                if (set == null || set.isEmpty()) return;
+                for (SseEmitter emitter : set) {
                     try {
                         emitter.send(SseEmitter.event()
-                                .name(eventType)
-                                .data(data, MediaType.APPLICATION_JSON));
+                            .name(eventType)
+                            .data(data, MediaType.APPLICATION_JSON));
                     } catch (Exception e) {
                         log.debug("Impossible d'envoyer la notification à {} : {}", username, e.getMessage());
-                        emitters.remove(username);
-                        userRoles.remove(username);
+                        set.remove(emitter);
                     }
+                }
+                if (set.isEmpty()) {
+                    emitters.remove(username);
+                    userRoles.remove(username);
                 }
             }
         });
@@ -115,12 +120,18 @@ public class NotificationService {
     @Scheduled(fixedRate = 20000)
     public void sendHeartbeat() {
         if (emitters.isEmpty()) return;
-        emitters.forEach((username, emitter) -> {
-            try {
-                emitter.send(SseEmitter.event()
+        emitters.forEach((username, set) -> {
+            if (set == null || set.isEmpty()) return;
+            for (SseEmitter emitter : set) {
+                try {
+                    emitter.send(SseEmitter.event()
                         .name("heartbeat")
                         .data(Map.of("t", System.currentTimeMillis()), MediaType.APPLICATION_JSON));
-            } catch (Exception e) {
+                } catch (Exception e) {
+                    set.remove(emitter);
+                }
+            }
+            if (set.isEmpty()) {
                 emitters.remove(username);
                 userRoles.remove(username);
             }
@@ -131,7 +142,7 @@ public class NotificationService {
      * Retourne le nombre de connexions SSE actives (pour le monitoring).
      */
     public int getActiveConnections() {
-        return emitters.size();
+        return emitters.values().stream().mapToInt(s -> s == null ? 0 : s.size()).sum();
     }
 
     /**
@@ -141,8 +152,11 @@ public class NotificationService {
     @PreDestroy
     public void closeAll() {
         log.info("Fermeture de {} connexions SSE...", emitters.size());
-        emitters.values().forEach(emitter -> {
-            try { emitter.complete(); } catch (Exception ignored) {}
+        emitters.values().forEach(set -> {
+            if (set == null) return;
+            set.forEach(emitter -> {
+                try { emitter.complete(); } catch (Exception ignored) {}
+            });
         });
         emitters.clear();
         userRoles.clear();

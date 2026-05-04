@@ -1,6 +1,8 @@
 package com.sucrestore.api.controller;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -72,15 +74,20 @@ public class AdminProductController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ProductResponse> createProduct(
             @RequestPart("product") String productJson,
-            @RequestPart(value = "image", required = false) MultipartFile imageFile) throws IOException {
+            @RequestPart(value = "mainImage", required = false) MultipartFile mainImageFile,
+            // Compatibilité ancien frontend
+            @RequestPart(value = "image", required = false) MultipartFile legacyImageFile,
+            @RequestPart(value = "secondaryImages", required = false) List<MultipartFile> secondaryImageFiles)
+            throws IOException {
 
         // 1. Convertir le JSON en DTO
         ProductRequest request = objectMapper.readValue(productJson, ProductRequest.class);
 
         // 2. Traiter l'image (Upload ou URL)
         String imageUrl = request.getImageUrl();
-        if (imageFile != null && !imageFile.isEmpty()) {
-            String fileName = fileStorageService.storeFile(imageFile);
+        MultipartFile effectiveMain = (mainImageFile != null && !mainImageFile.isEmpty()) ? mainImageFile : legacyImageFile;
+        if (effectiveMain != null && !effectiveMain.isEmpty()) {
+            String fileName = fileStorageService.storeProductImage(effectiveMain);
 
             // Construire l'URL d'accès public à l'image stockée
             imageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -89,8 +96,31 @@ public class AdminProductController {
                     .toUriString();
         }
 
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new RuntimeException("L'image principale est obligatoire (Fichier ou URL).");
+        }
+
+        // 3. Traiter les images secondaires (optionnelles)
+        List<String> secondaryUrls = new ArrayList<>();
+        if (secondaryImageFiles != null) {
+            if (secondaryImageFiles.size() > 5) {
+                throw new RuntimeException("Maximum 5 images secondaires.");
+            }
+            for (MultipartFile file : secondaryImageFiles) {
+                if (file == null || file.isEmpty()) {
+                    continue;
+                }
+                String fileName = fileStorageService.storeProductImage(file);
+                String url = ServletUriComponentsBuilder.fromCurrentContextPath()
+                        .path("/uploads/")
+                        .path(fileName)
+                        .toUriString();
+                secondaryUrls.add(url);
+            }
+        }
+
         // 3. Appeler le service pour créer le produit
-        return ResponseEntity.ok(productService.createProduct(request, imageUrl));
+        return ResponseEntity.ok(productService.createProduct(request, imageUrl, secondaryUrls));
     }
 
     /**
@@ -100,20 +130,43 @@ public class AdminProductController {
     public ResponseEntity<ProductResponse> updateProduct(
             @PathVariable Long id,
             @RequestPart("product") String productJson,
-            @RequestPart(value = "image", required = false) MultipartFile imageFile) throws IOException {
+            @RequestPart(value = "mainImage", required = false) MultipartFile mainImageFile,
+            // Compatibilité ancien frontend
+            @RequestPart(value = "image", required = false) MultipartFile legacyImageFile,
+            @RequestPart(value = "secondaryImages", required = false) List<MultipartFile> secondaryImageFiles)
+            throws IOException {
 
         ProductRequest request = objectMapper.readValue(productJson, ProductRequest.class);
 
         String imageUrl = request.getImageUrl();
-        if (imageFile != null && !imageFile.isEmpty()) {
-            String fileName = fileStorageService.storeFile(imageFile);
+        MultipartFile effectiveMain = (mainImageFile != null && !mainImageFile.isEmpty()) ? mainImageFile : legacyImageFile;
+        if (effectiveMain != null && !effectiveMain.isEmpty()) {
+            String fileName = fileStorageService.storeProductImage(effectiveMain);
             imageUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
                     .path("/uploads/")
                     .path(fileName)
                     .toUriString();
         }
 
-        return ResponseEntity.ok(productService.updateProduct(id, request, imageUrl));
+        List<String> newSecondaryUrls = new ArrayList<>();
+        if (secondaryImageFiles != null) {
+            if (secondaryImageFiles.size() > 5) {
+                throw new RuntimeException("Maximum 5 images secondaires.");
+            }
+            for (MultipartFile file : secondaryImageFiles) {
+                if (file == null || file.isEmpty()) {
+                    continue;
+                }
+                String fileName = fileStorageService.storeProductImage(file);
+                String url = ServletUriComponentsBuilder.fromCurrentContextPath()
+                        .path("/uploads/")
+                        .path(fileName)
+                        .toUriString();
+                newSecondaryUrls.add(url);
+            }
+        }
+
+        return ResponseEntity.ok(productService.updateProduct(id, request, imageUrl, newSecondaryUrls));
     }
 
     /**

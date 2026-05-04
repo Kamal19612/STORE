@@ -77,7 +77,7 @@ public class AuthController {
                 .map(item -> item.getAuthority())
                 .collect(java.util.stream.Collectors.toList());
 
-        String simpleRole = roles.contains("ROLE_DELIVERY_AGENT") ? "livreur" : "admin";
+        String simpleRole = (roles.contains("ROLE_DELIVERY_AGENT") || roles.contains("ROLE_DELIVERY")) ? "livreur" : "admin";
 
         Optional<com.sucrestore.api.entity.User> uOpt = userRepository.findByUsername(userDetails.getUsername());
         Long livreurId = null;
@@ -85,7 +85,7 @@ public class AuthController {
         if (uOpt.isPresent()) {
             var u = uOpt.get();
             // Mobile: livreurId = user.id pour l'identité livreur
-            if (roles.contains("ROLE_DELIVERY_AGENT")) {
+            if (roles.contains("ROLE_DELIVERY_AGENT") || roles.contains("ROLE_DELIVERY")) {
                 livreurId = u.getId();
             }
             String first = u.getFirstName() != null ? u.getFirstName().trim() : "";

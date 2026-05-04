@@ -89,6 +89,8 @@ public class TelegramService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    public record WebhookRegistrationResult(boolean attempted, boolean success, String message) {}
+
     public boolean isConfigured() {
         TelegramConfig cfg = resolveConfigPreferDb();
         return cfg.isComplete();
@@ -114,10 +116,24 @@ public class TelegramService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void registerWebhookOnStartup() {
-        String effectiveToken = getEffectiveBotToken();
-        if (effectiveToken.isBlank() || webhookUrl.isBlank()) {
+        WebhookRegistrationResult res = registerWebhookNow();
+        if (!res.attempted()) {
             log.info("Telegram webhook non enregistré (bot-token ou webhook-url manquant)");
-            return;
+        } else if (res.success()) {
+            log.info("Telegram webhook enregistré : {}", res.message());
+        } else {
+            log.warn("Échec enregistrement webhook Telegram : {}", res.message());
+        }
+    }
+
+    /**
+     * Enregistre (ou met à jour) le webhook Telegram immédiatement.
+     * Utile quand le bot-token est stocké en DB (store-scopé) et donc indisponible au démarrage.
+     */
+    public WebhookRegistrationResult registerWebhookNow() {
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken == null || effectiveToken.isBlank() || webhookUrl == null || webhookUrl.isBlank()) {
+            return new WebhookRegistrationResult(false, false, "missing_token_or_webhook_url");
         }
         try {
             String url = TELEGRAM_API + effectiveToken + "/setWebhook";
@@ -125,17 +141,76 @@ public class TelegramService {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("url", webhookUrl + "/api/telegram/webhook");
-            if (!webhookSecret.isBlank()) {
+            // IMPORTANT: store-scoped webhook URL so callbacks can resolve tenant reliably.
+            // If StoreContext is unavailable, fallback to legacy endpoint.
+            String storeCode = com.sucrestore.api.tenant.StoreContext.getStoreCodeOrNull();
+            String path = (storeCode != null && !storeCode.isBlank())
+                ? ("/api/telegram/" + storeCode + "/webhook")
+                : "/api/telegram/webhook";
+            body.put("url", webhookUrl + path);
+            if (webhookSecret != null && !webhookSecret.isBlank()) {
                 body.put("secret_token", webhookSecret);
             }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             String response = restTemplate.postForObject(url, request, String.class);
-            log.info("Telegram webhook enregistré : {}", response);
+            return new WebhookRegistrationResult(true, true, response == null ? "" : response);
         } catch (Exception e) {
-            log.warn("Échec enregistrement webhook Telegram : {}", e.getMessage());
+            return new WebhookRegistrationResult(true, false, e.getMessage() == null ? e.toString() : e.getMessage());
         }
+    }
+
+    /**
+     * Retourne l'état du webhook côté Telegram (getWebhookInfo).
+     * Sert au debug quand les boutons ne déclenchent rien.
+     */
+    public String getWebhookInfoRaw() {
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken == null || effectiveToken.isBlank()) {
+            return "{\"ok\":false,\"error\":\"missing_bot_token\"}";
+        }
+        try {
+            String url = TELEGRAM_API + effectiveToken + "/getWebhookInfo";
+            String resp = restTemplate.getForObject(url, String.class);
+            return resp == null ? "" : resp;
+        } catch (Exception e) {
+            return "{\"ok\":false,\"error\":\"" + escapeForJson(e.getMessage()) + "\"}";
+        }
+    }
+
+    /**
+     * Désactive le webhook Telegram (setWebhook url="").
+     */
+    public WebhookRegistrationResult unregisterWebhookNow() {
+        String effectiveToken = getEffectiveBotToken();
+        if (effectiveToken == null || effectiveToken.isBlank()) {
+            return new WebhookRegistrationResult(false, false, "missing_bot_token");
+        }
+        try {
+            String url = TELEGRAM_API + effectiveToken + "/setWebhook";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> body = new HashMap<>();
+            body.put("url", "");
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+            String response = restTemplate.postForObject(url, request, String.class);
+            return new WebhookRegistrationResult(true, true, response == null ? "" : response);
+        } catch (Exception e) {
+            return new WebhookRegistrationResult(true, false, e.getMessage() == null ? e.toString() : e.getMessage());
+        }
+    }
+
+    /**
+     * Envoie un message de test (permet de valider token + chat_id sans attendre une commande).
+     */
+    public void sendTestMessage(String text) {
+        String msg = (text == null || text.isBlank()) ? "✅ Test Telegram OK" : text;
+        sendText("🧪 <b>Test</b>\n" + escapeHtml(msg));
+    }
+
+    private String escapeForJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     // --- Notification nouvelle commande avec boutons ---

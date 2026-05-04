@@ -177,7 +177,7 @@ function App() {
               <Route
                 path="users"
                 element={
-                  <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
+                  <PrivateRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]}>
                     <AdminUserList />
                   </PrivateRoute>
                 }
@@ -185,7 +185,7 @@ function App() {
               <Route
                 path="users/new"
                 element={
-                  <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
+                  <PrivateRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]}>
                     <AdminUserForm />
                   </PrivateRoute>
                 }
@@ -193,7 +193,7 @@ function App() {
               <Route
                 path="users/edit/:id"
                 element={
-                  <PrivateRoute allowedRoles={["SUPER_ADMIN"]}>
+                  <PrivateRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]}>
                     <AdminUserForm />
                   </PrivateRoute>
                 }

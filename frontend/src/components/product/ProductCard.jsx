@@ -10,15 +10,29 @@ const ProductCard = ({ product }) => {
   const items = useCartStore((state) => state.items);
   const [showModal, setShowModal] = useState(false);
 
+  const isArchived = product.active === false;
+  const stockNum = Number(product.stock) || 0;
+  const purchaseAllowed = product.purchaseAllowed !== false;
+  const isPurchasable =
+    typeof product.available === "boolean"
+      ? product.available
+      : !isArchived && purchaseAllowed && stockNum > 0;
+  const canPurchase = isPurchasable;
+  const isRuptureOnly =
+    !isArchived && purchaseAllowed && stockNum === 0 && !isPurchasable;
+
   // Helper to format price like PHP: 10 000 FCFA
   const formatPrice = (price) => {
-    return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
+    const n = price != null && price !== "" ? Number(price) : 0;
+    const safe = Number.isFinite(n) ? n : 0;
+    return String(safe).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
   };
 
   const isInCart = items.some((item) => item.id === product.id);
 
   const handleToggleCart = (e) => {
     e.stopPropagation();
+    if (!canPurchase) return;
     if (isInCart) {
       removeItem(product.id);
       // Silence removal toast to reduce noise
@@ -72,7 +86,7 @@ const ProductCard = ({ product }) => {
             <img
               src={product.mainImage}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center block"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -100,15 +114,21 @@ const ProductCard = ({ product }) => {
             <i className="fas fa-eye text-sm"></i>
           </button>
 
-          {/* Availability Badge */}
-          {!product.available && (
-            <div
-              className="absolute top-2 right-2 text-white text-xs px-2 py-1 rounded"
-              style={{ backgroundColor: "var(--secondary)" }}
-            >
-              Non disponible
-            </div>
-          )}
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-[5]">
+            {isArchived && (
+              <div className="text-white text-xs px-2 py-1 rounded bg-gray-700 font-semibold">
+                Archivé
+              </div>
+            )}
+            {!isArchived && !isPurchasable && (
+              <div
+                className="text-white text-xs px-2 py-1 rounded"
+                style={{ backgroundColor: "var(--secondary)" }}
+              >
+                {isRuptureOnly ? "Rupture de stock" : "Non disponible"}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Product Info */}
@@ -144,7 +164,7 @@ const ProductCard = ({ product }) => {
               {formatPrice(product.price)}
             </span>
 
-            {product.available ? (
+            {canPurchase ? (
               <button
                 onClick={handleToggleCart}
                 className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg transition text-white flex items-center justify-center ${
@@ -169,6 +189,13 @@ const ProductCard = ({ product }) => {
               <button
                 className="bg-gray-400 text-white px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg cursor-not-allowed"
                 disabled
+                title={
+                  isArchived
+                    ? "Produit archivé"
+                    : isRuptureOnly
+                      ? "Rupture de stock"
+                      : "Non disponible à la vente"
+                }
               >
                 <i className="fas fa-times"></i>
               </button>

@@ -14,10 +14,24 @@ import axios from "axios";
 import useCartStore from "../../store/cartStore";
 import api, { getPublicSettings } from "../../services/api";
 import { toast } from "react-toastify";
+import { getExplicitStoreCode } from "../../services/store/storeContext";
 
 // Instance axios sans intercepteur 401 → pour les appels publics sans token
 const publicApi = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
+});
+
+// Toujours envoyer le store code (multi-store) même sur les appels publics.
+publicApi.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {};
+  const storeCode = getExplicitStoreCode();
+  // Prefer backend domain mapping; only send explicit store code when configured.
+  if (storeCode) {
+    config.headers["X-Store-Code"] = storeCode;
+  } else {
+    delete config.headers["X-Store-Code"];
+  }
+  return config;
 });
 
 const Checkout = () => {
@@ -32,7 +46,7 @@ const Checkout = () => {
 
   const [formData, setFormData] = useState({
     customerName: "",
-    customerPhone: "+226 ",
+    customerPhone: "",
     customerAddress: "",
     customerNotes: "",
     customerLatitude: null,
@@ -70,6 +84,29 @@ const Checkout = () => {
       return response.data;
     },
   });
+
+  // Indicatif (piloté par l'admin). Fallback: Burkina (+226).
+  const dialCode = (appSettings.customer_whatsapp_dial_code || "+226").trim() || "+226";
+  const dialPrefix = dialCode.endsWith(" ") ? dialCode : dialCode + " ";
+
+  // Initialiser / réaligner le téléphone dès que les settings sont chargés.
+  // On le fait 1) au premier chargement et 2) si l'admin change l'indicatif.
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    setFormData((prev) => {
+      const current = (prev.customerPhone || "").trim();
+      if (!current) {
+        return { ...prev, customerPhone: dialPrefix };
+      }
+      // Si l'utilisateur avait l'ancien indicatif forcé, on le remplace.
+      if (!prev.customerPhone.startsWith(dialPrefix)) {
+        const rest = prev.customerPhone.replace(/^\+?[0-9]+\s*/, "");
+        return { ...prev, customerPhone: dialPrefix + rest };
+      }
+      return prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded, dialPrefix]);
 
   useEffect(() => {
     if (appSettings.store_location) {
@@ -354,11 +391,11 @@ const Checkout = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === "customerPhone") {
-      // Garantir que l'indicatif +226 reste au début
-      if (!value.startsWith("+226 ")) {
+      // Garantir que l'indicatif (config admin) reste au début
+      if (!value.startsWith(dialPrefix)) {
         setFormData({
           ...formData,
-          [name]: "+226 " + value.replace(/^\+?\d*\s*/, ""),
+          [name]: dialPrefix + value.replace(/^\+?\d*\s*/, ""),
         });
         return;
       }
@@ -909,7 +946,7 @@ const Checkout = () => {
                 distance === null ||
                 !formData.customerName.trim() ||
                 !formData.customerPhone.trim() ||
-                formData.customerPhone.trim() === "+226" ||
+                formData.customerPhone.trim() === dialCode ||
                 !formData.customerAddress.trim() ||
                 (formData.deliveryType === "PROGRAMMER" && !formData.scheduledTime)
               }
@@ -945,7 +982,7 @@ const Checkout = () => {
                 </>
               )}
             </button>
-            {(distance === null || !formData.customerName.trim() || !formData.customerPhone.trim() || formData.customerPhone.trim() === "+226" || !formData.customerAddress.trim() || (formData.deliveryType === "PROGRAMMER" && !formData.scheduledTime)) && !loading && (
+            {(distance === null || !formData.customerName.trim() || !formData.customerPhone.trim() || formData.customerPhone.trim() === dialCode || !formData.customerAddress.trim() || (formData.deliveryType === "PROGRAMMER" && !formData.scheduledTime)) && !loading && (
               <p className="text-center text-[10px] text-red-500 mt-2 font-bold uppercase tracking-widest">
                 ⚠️ Veuillez remplir tous les champs obligatoires et récupérer votre position GPS pour continuer
               </p>

@@ -6,6 +6,10 @@ import {
   updateSettings,
   resetStats,
   syncProducts,
+  registerTelegramWebhook,
+  getTelegramWebhookInfo,
+  unregisterTelegramWebhook,
+  sendTelegramTest,
 } from "../../services/api";
 import { Save, Settings, Trash2, RefreshCw, CheckCircle } from "lucide-react";
 import useAuthStore from "../../store/authStore";
@@ -25,6 +29,11 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [telegramWebhookLoading, setTelegramWebhookLoading] = useState(false);
+  const [telegramInfoLoading, setTelegramInfoLoading] = useState(false);
+  const [telegramActionLoading, setTelegramActionLoading] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState("");
+  const [telegramTestText, setTelegramTestText] = useState("Test Telegram OK");
 
   useEffect(() => {
     if (user?.role !== "SUPER_ADMIN") {
@@ -89,6 +98,72 @@ const AdminSettings = () => {
     }
   };
 
+  const handleRegisterTelegramWebhook = async () => {
+    setTelegramWebhookLoading(true);
+    try {
+      const res = await registerTelegramWebhook();
+      const ok = res?.data?.success;
+      const attempted = res?.data?.attempted;
+      if (ok) {
+        toast.success("Webhook Telegram activé (boutons ✅/❌).");
+      } else if (attempted === false) {
+        toast.error("Webhook non activé: vérifiez Telegram Bot Token + TELEGRAM_WEBHOOK_URL.");
+      } else {
+        toast.error(`Échec activation webhook Telegram: ${res?.data?.message || "inconnu"}`);
+      }
+    } catch (error) {
+      console.error("Erreur activation webhook Telegram:", error);
+      toast.error("Erreur lors de l'activation du webhook Telegram.");
+    } finally {
+      setTelegramWebhookLoading(false);
+    }
+  };
+
+  const handleTelegramWebhookInfo = async () => {
+    setTelegramInfoLoading(true);
+    try {
+      const res = await getTelegramWebhookInfo();
+      const raw = typeof res?.data === "string" ? res.data : JSON.stringify(res?.data, null, 2);
+      setTelegramStatus(raw);
+      toast.success("Statut webhook Telegram mis à jour.");
+    } catch (error) {
+      console.error("Erreur webhook info Telegram:", error);
+      toast.error("Impossible de récupérer le statut du webhook Telegram.");
+    } finally {
+      setTelegramInfoLoading(false);
+    }
+  };
+
+  const handleUnregisterTelegramWebhook = async () => {
+    setTelegramActionLoading(true);
+    try {
+      const res = await unregisterTelegramWebhook();
+      if (res?.data?.success) {
+        toast.success("Webhook Telegram désactivé.");
+      } else {
+        toast.error(`Échec désactivation webhook: ${res?.data?.message || "inconnu"}`);
+      }
+    } catch (error) {
+      console.error("Erreur désactivation webhook Telegram:", error);
+      toast.error("Erreur lors de la désactivation du webhook Telegram.");
+    } finally {
+      setTelegramActionLoading(false);
+    }
+  };
+
+  const handleTelegramTest = async () => {
+    setTelegramActionLoading(true);
+    try {
+      await sendTelegramTest(telegramTestText);
+      toast.success("Message de test envoyé sur Telegram.");
+    } catch (error) {
+      console.error("Erreur test Telegram:", error);
+      toast.error("Impossible d'envoyer le message de test Telegram.");
+    } finally {
+      setTelegramActionLoading(false);
+    }
+  };
+
   if (loading) return <div className="p-4 sm:p-8 text-gray-600 dark:text-gray-300">Chargement...</div>;
 
   return (
@@ -117,6 +192,47 @@ const AdminSettings = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Format international sans + (ex: 22670123456)</p>
               </div>
 
+              <div>
+                <label className={labelCls}>Indicatif par défaut (Checkout)</label>
+                <input
+                  type="text"
+                  name="customer_whatsapp_dial_code"
+                  value={settings.customer_whatsapp_dial_code || ""}
+                  onChange={handleChange}
+                  placeholder="+226"
+                  className={`${inputCls} font-mono`}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Pré-rempli dans le champ &quot;Numéro WhatsApp&quot; du checkout (ex: +226, +225).
+                </p>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg">
+                <label className="block text-sm font-bold text-blue-800 dark:text-blue-300 mb-1 flex items-center gap-1">
+                  Telegram Bot Token
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-700 text-[10px] font-bold" title="Token du bot Telegram">i</span>
+                </label>
+                <input
+                  type="password"
+                  name="telegram_bot_token"
+                  value={settings.telegram_bot_token || ""}
+                  onChange={handleChange}
+                  placeholder="Ex: 123456789:AAE..."
+                  className={`${inputCls} font-mono border-blue-300 dark:border-blue-700`}
+                  autoComplete="off"
+                />
+                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
+                  <p>Token du bot Telegram (BotFather) utilisé pour envoyer les notifications.</p>
+                  <p className="font-semibold">Comment obtenir le token ?</p>
+                  <ol className="list-decimal ml-4 pl-1">
+                    <li>Ouvrez Telegram</li>
+                    <li>Cherchez le bot <strong>@BotFather</strong></li>
+                    <li>Envoyez <code>/newbot</code> puis suivez les étapes</li>
+                    <li>Copiez le token (format <code>123456:ABC...</code>) et collez-le ici.</li>
+                  </ol>
+                </div>
+              </div>
+
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg">
                 <label className="block text-sm font-bold text-blue-800 dark:text-blue-300 mb-1 flex items-center gap-1">
                   Telegram Chat ID
@@ -133,6 +249,68 @@ const AdminSettings = () => {
                     <li>Copiez l'ID (suite de chiffres) et collez-le ici.</li>
                   </ol>
                 </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg flex flex-col gap-2">
+                <div className="text-xs text-blue-700 dark:text-blue-300">
+                  <p className="font-semibold">Activer les boutons Telegram (webhook)</p>
+                  <p>
+                    À faire après avoir enregistré le <strong>Bot Token</strong> et le <strong>Chat ID</strong>.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    disabled={telegramWebhookLoading}
+                    onClick={handleRegisterTelegramWebhook}
+                    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${telegramWebhookLoading ? "animate-spin" : ""}`} />
+                    {telegramWebhookLoading ? "Activation..." : "Activer le webhook"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={telegramInfoLoading}
+                    onClick={handleTelegramWebhookInfo}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white/80 hover:bg-white text-blue-700 border border-blue-200 px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm dark:bg-blue-950/20 dark:hover:bg-blue-950/30 dark:text-blue-200 dark:border-blue-800/30"
+                  >
+                    <CheckCircle className={`w-4 h-4 ${telegramInfoLoading ? "animate-pulse" : ""}`} />
+                    {telegramInfoLoading ? "Lecture..." : "Voir le statut"}
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={telegramActionLoading}
+                    onClick={handleUnregisterTelegramWebhook}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white/80 hover:bg-white text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm dark:bg-red-950/10 dark:hover:bg-red-950/20 dark:text-red-200 dark:border-red-900/30"
+                  >
+                    Désactiver webhook
+                  </button>
+                  <button
+                    type="button"
+                    disabled={telegramActionLoading}
+                    onClick={handleTelegramTest}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white/80 hover:bg-white text-green-700 border border-green-200 px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm dark:bg-green-950/10 dark:hover:bg-green-950/20 dark:text-green-200 dark:border-green-900/30"
+                  >
+                    Envoyer test
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={telegramTestText}
+                  onChange={(e) => setTelegramTestText(e.target.value)}
+                  placeholder="Texte du message de test"
+                  className={`${inputCls} font-mono border-blue-300 dark:border-blue-700`}
+                />
+
+                {telegramStatus ? (
+                  <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words bg-white/60 dark:bg-black/20 border border-blue-200 dark:border-blue-800/30 rounded p-2 text-blue-900 dark:text-blue-100 max-h-56 overflow-auto">
+                    {telegramStatus}
+                  </pre>
+                ) : null}
               </div>
 
               <div>

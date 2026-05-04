@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback } from "react";
 import { toast } from "react-toastify";
 import useAuthStore from "../store/authStore";
 import { sendBrowserNotification } from "./useBrowserNotifications";
+import { EventSourcePolyfill } from "event-source-polyfill";
+import { getExplicitStoreCode } from "../services/store/storeContext";
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
 
@@ -86,9 +88,16 @@ export function useNotifications(role) {
 
     const baseUrl = import.meta.env.VITE_API_URL || "/api";
     const endpoint = role === "delivery" ? "delivery" : "admin";
-    const url = `${baseUrl}/notifications/stream/${endpoint}?token=${encodeURIComponent(token)}`;
+    const storeCode = getExplicitStoreCode();
+    const urlNoQuery = `${baseUrl}/notifications/stream/${endpoint}`;
 
-    const es = new EventSource(url);
+    const headers = { Authorization: `Bearer ${token}` };
+    if (storeCode) headers["X-Store-Code"] = storeCode;
+
+    const es = new EventSourcePolyfill(urlNoQuery, {
+      headers,
+      heartbeatTimeout: 60000,
+    });
     esRef.current = es;
 
     es.addEventListener("new_order", (e) => {
@@ -175,7 +184,15 @@ export function useNotifications(role) {
       console.info(`[SSE] Connecté au flux ${role}`);
     });
 
-    es.onerror = () => {
+    es.onerror = (evt) => {
+      const status = evt?.status;
+      if (status === 401 || status === 403) {
+        try {
+          useAuthStore.getState().logout?.();
+        } catch {}
+        if (!window.location.pathname.includes("/login")) window.location.href = "/login";
+        return;
+      }
       es.close();
       esRef.current = null;
       // Reconnexion automatique après 5s

@@ -63,21 +63,21 @@ const AdminOrderDetail = () => {
     if (!window.confirm(`Changer le statut en ${newStatus} ?`)) return;
 
     setUpdating(true);
+    const prevOrder = order;
+    // Mise à jour optimiste: évite d'attendre une réponse backend qui peut être minimale
+    setOrder((cur) => (cur ? { ...cur, status: newStatus } : cur));
     try {
-      const updatedOrder = await adminOrderService.updateOrderStatus(
-        id,
-        newStatus,
-      );
-      setOrder(updatedOrder);
-      // Refresh history to see the new change immediately
-      const historyData = await adminOrderService.getOrderHistory(id);
-      setHistory(historyData);
+      await adminOrderService.updateOrderStatus(id, newStatus);
+      // Refetch complet (commande + historique) pour refléter l'état exact serveur
+      await fetchOrder(true);
 
       if (newStatus === "CONFIRMED") setJustActioned("confirmed");
       if (newStatus === "CANCELLED") setJustActioned("cancelled");
 
       toast.success(`Statut mis à jour : ${newStatus}`);
     } catch (error) {
+      // rollback si l'update échoue
+      if (prevOrder) setOrder(prevOrder);
       toast.error("Erreur lors de la mise à jour");
     } finally {
       setUpdating(false);
@@ -320,18 +320,18 @@ const AdminOrderDetail = () => {
                       <button
                         onClick={() => handleStatusChange("CANCELLED")}
                         disabled={updating}
-                        className="flex-1 sm:flex-none px-6 py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                        className="group flex-1 sm:flex-none px-5 py-3 bg-white text-red-700 border border-red-200 rounded-xl font-extrabold shadow-sm transition-all flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/25 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-red-50 hover:-translate-y-[1px] hover:shadow-md hover:shadow-red-500/10 active:translate-y-0 active:shadow-sm"
                       >
-                        <XCircle className="w-5 h-5" />
-                        Annuler la commande
+                        <XCircle className="w-5 h-5 transition-transform group-hover:scale-110" />
+                        Annuler
                       </button>
                       <button
                         onClick={() => handleStatusChange("CONFIRMED")}
                         disabled={updating}
-                        className="flex-1 sm:flex-none px-6 py-3 bg-primary text-secondary rounded-xl font-bold hover:brightness-110 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                        className="group flex-1 sm:flex-none px-5 py-3 bg-primary text-secondary rounded-xl font-extrabold shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-[1px] hover:shadow-xl hover:shadow-primary/25 active:translate-y-0 active:brightness-95"
                       >
-                        <CheckCircle className="w-5 h-5" />
-                        Valider la commande
+                        <CheckCircle className="w-5 h-5 transition-transform group-hover:scale-110" />
+                        Valider
                       </button>
                     </>
                   )}
@@ -339,10 +339,10 @@ const AdminOrderDetail = () => {
                      <button
                         onClick={() => handleStatusChange("CANCELLED")}
                         disabled={updating}
-                        className="flex-1 sm:flex-none px-6 py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                        className="group flex-1 sm:flex-none px-5 py-3 bg-white text-red-700 border border-red-200 rounded-xl font-extrabold shadow-sm transition-all flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/25 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-red-50 hover:-translate-y-[1px] hover:shadow-md hover:shadow-red-500/10 active:translate-y-0 active:shadow-sm"
                       >
                         <XCircle className="w-5 h-5" />
-                        Annuler la commande
+                        Annuler
                       </button>
                   )}
                   {(order.status === "SHIPPED" || order.status === "DELIVERED") && (

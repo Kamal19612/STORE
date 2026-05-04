@@ -28,4 +28,10 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
      * Liste toutes les catégories actives.
      */
     List<Category> findByActiveTrue();
+
+    // Multi-store scoped
+    Optional<Category> findByNameIgnoreCaseAndStoreId(String name, Long storeId);
+    Optional<Category> findBySlugAndStoreId(String slug, Long storeId);
+    List<Category> findByActiveTrueAndStoreId(Long storeId);
+    List<Category> findByStoreId(Long storeId);
 }

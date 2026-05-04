@@ -4,6 +4,7 @@ import { ArrowLeft, ShoppingCart, Check } from "lucide-react";
 import { toast } from "react-toastify";
 import productService from "../../services/productService";
 import useCartStore from "../../store/cartStore";
+import ProductImageCarousel from "../../components/product/ProductImageCarousel";
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -35,6 +36,13 @@ const ProductDetail = () => {
   }, [id]);
 
   const handleToggleCart = () => {
+    const purchasable =
+      typeof product.available === "boolean"
+        ? product.available
+        : product.active !== false &&
+          (product.purchaseAllowed !== false) &&
+          (Number(product.stock) || 0) > 0;
+    if (!purchasable) return;
     if (isInCart) {
       removeItem(product.id);
       toast.info("Produit retiré du panier");
@@ -70,6 +78,17 @@ const ProductDetail = () => {
     );
   }
 
+  const isArchived = product.active === false;
+  const stockNum = Number(product.stock) || 0;
+  const purchaseAllowed = product.purchaseAllowed !== false;
+  const isPurchasable =
+    typeof product.available === "boolean"
+      ? product.available
+      : !isArchived && purchaseAllowed && stockNum > 0;
+  const canPurchase = isPurchasable;
+  const isRuptureOnly =
+    !isArchived && purchaseAllowed && stockNum === 0 && !isPurchasable;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Breadcrumb */}
@@ -83,18 +102,11 @@ const ProductDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Image Section */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="aspect-square w-full bg-gray-100 flex items-center justify-center">
-            <img
-              src={
-                product.mainImage ||
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Crect width='600' height='600' fill='%23f3f4f6'/%3E%3C/svg%3E"
-              }
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </div>
+        <ProductImageCarousel
+          mainImage={product.mainImage}
+          secondaryImages={product.secondaryImages}
+          alt={product.name}
+        />
 
         {/* Product Info Section */}
         <div className="flex flex-col">
@@ -126,14 +138,20 @@ const ProductDetail = () => {
 
           {/* Availability */}
           <div className="mb-6">
-            {product.available ? (
+            {isArchived ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg">
+                <span className="font-semibold">Archivé</span>
+              </div>
+            ) : isPurchasable ? (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg">
                 <Check className="h-5 w-5" />
                 <span className="font-semibold">En stock</span>
               </div>
             ) : (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg">
-                <span className="font-semibold">Non disponible</span>
+                <span className="font-semibold">
+                  {isRuptureOnly ? "Rupture de stock" : "Non disponible"}
+                </span>
               </div>
             )}
           </div>
@@ -155,7 +173,7 @@ const ProductDetail = () => {
 
           {/* Add to Cart Button */}
           <div className="border-t pt-6">
-            {product.available ? (
+            {canPurchase ? (
               <button
                 onClick={handleToggleCart}
                 className={`w-full py-4 rounded-lg font-bold text-lg transition-all duration-200 shadow-lg flex items-center justify-center gap-3 ${
@@ -181,7 +199,11 @@ const ProductDetail = () => {
                 disabled
                 className="w-full py-4 rounded-lg font-bold text-lg bg-gray-300 text-gray-500 cursor-not-allowed"
               >
-                Produit indisponible
+                {isArchived
+                  ? "Produit archivé"
+                  : isRuptureOnly
+                    ? "Rupture de stock"
+                    : "Produit indisponible"}
               </button>
             )}
           </div>

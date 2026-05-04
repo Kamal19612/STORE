@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import productService from "../../services/productService";
 import ProductCard from "../../components/product/ProductCard";
@@ -6,6 +6,7 @@ import Slider from "../../components/public/Slider";
 import ProductCarouselStrip from "../../components/public/ProductCarouselStrip";
 import CategoryBar from "../../components/product/CategoryBar";
 import FilterIcon from "../../assets/filter-icon.png";
+import { buildCatalogGridProducts } from "../../utils/catalogFilters";
 
 const Home = () => {
   const [products, setProducts] = useState([]);
@@ -26,7 +27,7 @@ const Home = () => {
     const fetchProducts = async () => {
       try {
         const [data, top] = await Promise.all([
-          productService.getAllProducts(0, 100),
+          productService.getFullProductCatalog(),
           productService.getTopProducts(10),
         ]);
         setProducts(data.content || []);
@@ -44,17 +45,12 @@ const Home = () => {
     fetchProducts();
   }, []);
 
-  // Filtrage Client-Side pour correspondre au design PHP immédiatement
-  const filteredProducts = products.filter((product) => {
-    const matchCategory =
-      !selectedCategory || selectedCategory === "Tous" ||
-      (product.categoryName &&
-        product.categoryName.toLowerCase() === String(selectedCategory || "").toLowerCase());
-
-    const matchAvailability = !showAvailableOnly || product.available;
-
-    return matchCategory && matchAvailability;
-  });
+  // Même enchaînement que sucre-store PHP : catégorie puis option « disponibles uniquement »
+  const gridProducts = useMemo(
+    () =>
+      buildCatalogGridProducts(products, selectedCategory, showAvailableOnly),
+    [products, selectedCategory, showAvailableOnly],
+  );
 
   if (loading) {
     return (
@@ -92,7 +88,11 @@ const Home = () => {
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           categories={[
-            ...new Set(products.map((p) => p.categoryName).filter(Boolean)),
+            ...new Set(
+              products
+                .map((p) => (p.categoryName || "").trim())
+                .filter(Boolean),
+            ),
           ]}
         />
       </div>
@@ -133,7 +133,9 @@ const Home = () => {
                 {/* Extract unique categories from products for the sidebar list */}
                 {[
                   ...new Set(
-                    products.map((p) => p.categoryName).filter(Boolean),
+                    products
+                      .map((p) => (p.categoryName || "").trim())
+                      .filter(Boolean),
                   ),
                 ].map((cat) => (
                   <motion.button
@@ -176,7 +178,7 @@ const Home = () => {
             {/* Results Count */}
             <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-600">
-                <strong>{filteredProducts.length}</strong> produit(s) trouvé(s)
+                <strong>{gridProducts.length}</strong> produit(s) trouvé(s)
               </p>
             </div>
           </div>
@@ -202,7 +204,7 @@ const Home = () => {
 
 
             <AnimatePresence mode="wait">
-              {filteredProducts.length === 0 ? (
+              {gridProducts.length === 0 ? (
               <motion.div 
                 key="empty"
                 initial={{ opacity: 0 }}
@@ -233,8 +235,17 @@ const Home = () => {
               exit={{ opacity: 0 }}
               className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full items-start"
             >
-              {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {gridProducts.map((product, index) => (
+                <ProductCard
+                  key={
+                    product.id != null
+                      ? `id:${product.id}`
+                      : product.slug
+                        ? `slug:${product.slug}`
+                        : `idx:${index}`
+                  }
+                  product={product}
+                />
               ))}
             </motion.div>
           )}

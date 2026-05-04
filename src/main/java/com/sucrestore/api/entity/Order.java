@@ -36,13 +36,26 @@ import lombok.NoArgsConstructor;
 @Table(name = "orders", indexes = {
     @Index(name = "idx_order_status", columnList = "status"),
     @Index(name = "idx_order_created_at", columnList = "createdAt"),
-    @Index(name = "idx_order_deleted", columnList = "deleted")
+    @Index(name = "idx_order_deleted", columnList = "deleted"),
+
+    // Multi-store critical indexes
+    @Index(name = "idx_orders_store_id", columnList = "store_id"),
+    @Index(name = "idx_orders_store_status", columnList = "store_id,status"),
+    @Index(name = "idx_orders_store_created_at", columnList = "store_id,created_at")
 })
 public class Order {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Store owner (tenant).
+     * Nullable for backward compatibility until migrator attaches existing rows.
+     */
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "store_id")
+    private Store store;
 
     /**
      * Numéro unique de commande (ex: ORD-2024-XXXX)

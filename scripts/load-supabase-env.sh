@@ -6,6 +6,9 @@
 #   source STORE/scripts/load-supabase-env.sh
 #   mvn -f STORE/pom.xml spring-boot:run
 #
+# Important : ne pas utiliser « return » hors fonction si ce fichier est sourcé depuis
+# une autre fonction (ex. sucrestore.sh) — en bash cela quitterait la fonction appelante.
+#
 if [ -z "${BASH_VERSION:-}" ]; then
   echo "[load-supabase-env] Ce script nécessite bash (ex. : bash -c '. ./scripts/load-supabase-env.sh && mvn spring-boot:run')." >&2
   return 1 2>/dev/null || exit 1
@@ -24,11 +27,7 @@ ENV_FILE="${SUPABASE_ENV_FILE:-$REPO_ROOT/supabase/.env}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[load-supabase-env] Fichier introuvable : $ENV_FILE" >&2
   echo "[load-supabase-env] Définissez SUPABASE_ENV_FILE ou placez supabase/.env à la racine du dépôt." >&2
-  return 0 2>/dev/null || exit 0
-fi
-
-set -euo pipefail
-
+else
 # Lit une ligne KEY=value (une seule ligne, première occurrence). Préserve les '=' dans la valeur (JWT).
 read_kv() {
   local key="$1"
@@ -50,13 +49,13 @@ trim() {
 
 SR="$(read_kv SERVICE_ROLE_KEY)"
 SR="$(trim "$SR")"
-if [[ -n "$SR" ]]; then
+if [[ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" && -n "$SR" ]]; then
   export SUPABASE_SERVICE_ROLE_KEY="$SR"
 fi
 
 PG="$(read_kv POSTGRES_PASSWORD)"
 PG="$(trim "$PG")"
-if [[ -n "$PG" ]]; then
+if [[ -z "${DB_PASSWORD:-}" && -n "$PG" ]]; then
   export DB_PASSWORD="$PG"
 fi
 
@@ -68,9 +67,13 @@ KONG_PORT="$(read_kv KONG_HTTP_PORT)"
 KONG_PORT="$(trim "${KONG_PORT:-8000}")"
 
 if [[ -n "$PUB" ]]; then
-  export SUPABASE_URL="$PUB"
+  if [[ -z "${SUPABASE_URL:-}" ]]; then
+    export SUPABASE_URL="$PUB"
+  fi
 else
-  export SUPABASE_URL="http://127.0.0.1:${KONG_PORT}"
+  if [[ -z "${SUPABASE_URL:-}" ]]; then
+    export SUPABASE_URL="http://127.0.0.1:${KONG_PORT}"
+  fi
 fi
 
 echo "[load-supabase-env] SUPABASE_URL=$SUPABASE_URL" >&2
@@ -83,4 +86,5 @@ if [[ -n "${DB_PASSWORD:-}" ]]; then
   echo "[load-supabase-env] DB_PASSWORD : OK (${#DB_PASSWORD} caractères)" >&2
 else
   echo "[load-supabase-env] AVERTISSEMENT : POSTGRES_PASSWORD absent — connexion Postgres peut échouer." >&2
+fi
 fi

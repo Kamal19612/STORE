@@ -3,16 +3,22 @@ package com.sucrestore.api.security;
 import java.util.Collections;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.sucrestore.api.entity.User;
 import com.sucrestore.api.repository.UserRepository;
+import com.sucrestore.api.tenant.StoreContext;
 
 /**
  * Service implémentant l'interface UserDetailsService de Spring Security. Son
@@ -21,6 +27,8 @@ import com.sucrestore.api.repository.UserRepository;
  */
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserDetailsServiceImpl.class);
 
     @Autowired
     UserRepository userRepository;
@@ -37,26 +45,73 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional // Transactionnel car on pourrait charger des collections Lazy (ex: roles)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Accepte la connexion via username OU email (l'UI affiche souvent un email)
-        User user = userRepository.findByUsernameOrEmail(username, username)
-                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
+        try {
+            // Accepte la connexion via username OU email (l'UI affiche souvent un email)
+            User user = userRepository.findByUsernameOrEmail(username, username)
+                    .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
 
-        // Retourne un objet User de Spring Security (et non notre Entité User)
-        return new org.springframework.security.core.userdetails.User(
-                user.getUsername(),
-                user.getPassword(),
-                user.isActive(), // Enabled ?
-                true, // Account Non Expired
-                true, // Credentials Non Expired
-                true, // Account Non Locked
-                // Conversion du rôle en Authority Spring Security
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-        );
+            // Guard rails: avoid NPEs that would bubble up as 500.
+            if (user.getUsername() == null || user.getUsername().isBlank()) {
+                log.error("[AUTH] user record is invalid (blank username) input={}", username);
+                throw new BadCredentialsException("Bad credentials");
+            }
+            if (user.getPassword() == null || user.getPassword().isBlank()) {
+                log.error("[AUTH] user record is invalid (blank password) username={}", user.getUsername());
+                throw new BadCredentialsException("Bad credentials");
+            }
+            if (user.getRole() == null) {
+                log.error("[AUTH] user record is invalid (null role) username={} storeId={}",
+                    user.getUsername(), user.getStore() != null ? user.getStore().getId() : null);
+                throw new BadCredentialsException("Bad credentials");
+            }
+
+            // Retourne un objet User de Spring Security (et non notre Entité User)
+            return new org.springframework.security.core.userdetails.User(
+                    user.getUsername(),
+                    user.getPassword(),
+                    user.isActive(), // Enabled ?
+                    true, // Account Non Expired
+                    true, // Credentials Non Expired
+                    true, // Account Non Locked
+                    // Conversion du rôle en Authority Spring Security
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+            );
+        } catch (BadCredentialsException | UsernameNotFoundException e) {
+            // Expected auth failures
+            throw e;
+        } catch (RuntimeException e) {
+            // Convert unexpected runtime errors to auth failure (prevents leaking stacktraces / 500s).
+            log.error("[AUTH] unexpected error while loading user={}: {}", username, e.getMessage(), e);
+            throw new BadCredentialsException("Bad credentials");
+        }
     }
 
     // --- Méthodes Admin ---
     public List<User> getAllUsers() {
-        return userRepository.findAll();
+        if (isSuperAdminCaller()) {
+            return userRepository.findAll();
+        }
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return userRepository.findByStoreId(storeId);
+    }
+
+    private boolean isSuperAdminCaller() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities() == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream().anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
+    }
+
+    private void assertCanManageTargetRole(User.Role targetRole) {
+        // ADMIN est autorisé à créer/mettre à jour des rôles "non sensibles".
+        // Les rôles ADMIN/SUPER_ADMIN restent réservés au SUPER_ADMIN.
+        if (targetRole == null) {
+            throw new RuntimeException("Rôle manquant.");
+        }
+        if ((targetRole == User.Role.ADMIN || targetRole == User.Role.SUPER_ADMIN) && !isSuperAdminCaller()) {
+            throw new RuntimeException("Permission insuffisante pour attribuer ce rôle.");
+        }
     }
 
     public User updateUserRole(Long id, String roleName) {
@@ -73,6 +128,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 }
             }
 
+            assertCanManageTargetRole(role);
             user.setRole(role);
             return userRepository.save(user);
         } catch (IllegalArgumentException e) {
@@ -82,6 +138,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Transactional
     public User createUser(User user) {
+        assertCanManageTargetRole(user.getRole());
         if (userRepository.existsByUsername(user.getUsername())) {
             throw new RuntimeException("Nom d'utilisateur déjà pris !");
         }
@@ -98,10 +155,19 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         final String rawPassword = user.getPassword();
         user.setPassword(passwordEncoder.encode(rawPassword));
+
+        // Multi-store: attach store scope for non-global roles.
+        if (user.getRole() != User.Role.DELIVERY_AGENT && user.getRole() != User.Role.DELIVERY) {
+            Long storeId = StoreContext.getStoreIdOrNull();
+            user.setStore(com.sucrestore.api.entity.Store.builder().id(storeId).build());
+        } else {
+            user.setStore(null); // global
+        }
+
         User saved = userRepository.save(user);
 
         // Provision Supabase Auth + mapping for delivery/admin accounts.
-        if (saved.getRole() == User.Role.DELIVERY_AGENT) {
+        if (saved.getRole() == User.Role.DELIVERY_AGENT || saved.getRole() == User.Role.DELIVERY) {
             try {
                 final String authUserId = supabaseAdminService.createAuthUser(
                     saved.getEmail(),
@@ -131,6 +197,20 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable ID: " + id));
 
+        // Enforce store isolation for non-super-admin: cannot touch users from other stores.
+        if (!isSuperAdminCaller()) {
+            Long storeId = StoreContext.getStoreIdOrNull();
+            if (user.getStore() == null || user.getStore().getId() == null || !user.getStore().getId().equals(storeId)) {
+                throw new RuntimeException("Utilisateur introuvable ID: " + id);
+            }
+        }
+
+        // Empêche un ADMIN de modifier un compte ADMIN/SUPER_ADMIN.
+        if (!isSuperAdminCaller()
+                && (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.SUPER_ADMIN)) {
+            throw new RuntimeException("Permission insuffisante pour modifier ce compte.");
+        }
+
         user.setUsername(userRequest.getUsername());
         user.setEmail(userRequest.getEmail());
 
@@ -141,8 +221,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
+        assertCanManageTargetRole(userRequest.getRole());
         user.setRole(userRequest.getRole());
         user.setActive(userRequest.isActive());
+
+        // Store scope update: keep current store for store-scoped roles, clear for global delivery roles.
+        if (userRequest.getRole() == User.Role.DELIVERY_AGENT || userRequest.getRole() == User.Role.DELIVERY) {
+            user.setStore(null);
+        } else if (user.getStore() == null) {
+            Long storeId = StoreContext.getStoreIdOrNull();
+            user.setStore(com.sucrestore.api.entity.Store.builder().id(storeId).build());
+        }
 
         // Update password only if provided (non-empty)
         if (userRequest.getPassword() != null && !userRequest.getPassword().isEmpty()) {
@@ -151,11 +240,29 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         user.setPhone(userRequest.getPhone());
 
+        // Champs identité CNIB (livreurs)
+        user.setFirstName(userRequest.getFirstName());
+        user.setLastName(userRequest.getLastName());
+        user.setBirthDate(userRequest.getBirthDate());
+        user.setBirthPlace(userRequest.getBirthPlace());
+        user.setGender(userRequest.getGender());
+        user.setProfession(userRequest.getProfession());
+        user.setCnibNationalId(userRequest.getCnibNationalId());
+        user.setCnibSerial(userRequest.getCnibSerial());
+        user.setCnibIssueDate(userRequest.getCnibIssueDate());
+        user.setCnibExpiryDate(userRequest.getCnibExpiryDate());
+        user.setCnibOcrText(userRequest.getCnibOcrText());
+
         return userRepository.save(user);
     }
 
     @Transactional
     public void deleteUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable ID: " + id));
+        if (!isSuperAdminCaller() && (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.SUPER_ADMIN)) {
+            throw new RuntimeException("Permission insuffisante pour supprimer ce compte.");
+        }
         userRepository.deleteById(id);
     }
 

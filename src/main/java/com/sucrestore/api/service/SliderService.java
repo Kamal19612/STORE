@@ -8,11 +8,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.transaction.annotation.Transactional;
 
-import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Direction;
 
 import com.sucrestore.api.entity.Slider;
 import com.sucrestore.api.repository.SliderRepository;
+import com.sucrestore.api.tenant.StoreContext;
 
 @Service
 @Transactional
@@ -26,18 +25,19 @@ public class SliderService {
 
     // Récupérer tous les sliders (pour Admin)
     public List<Slider> getAllSliders() {
-        System.out.println("!!! DEBUG: SliderService.getAllSliders (ORDER DESC)");
-        return sliderRepository.findAll(Sort.by(Direction.DESC, "displayOrder"));
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return sliderRepository.findAllByStoreIdOrderByDisplayOrderDesc(storeId);
     }
 
     // Récupérer les sliders actifs (pour Public)
     public List<Slider> getActiveSliders() {
-        System.out.println("!!! DEBUG: SliderService.getActiveSliders (ORDER DESC)");
-        return sliderRepository.findAllByActiveTrueOrderByDisplayOrderDesc();
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return sliderRepository.findAllByActiveTrueAndStoreIdOrderByDisplayOrderDesc(storeId);
     }
 
     // Créer un slider (fichier ou URL optionnels)
     public Slider createSlider(String title, String description, MultipartFile imageFile, String imageUrl, Integer order, Boolean active) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         String finalImageUrl = imageUrl;
         
         System.out.println("!!! DEBUG: SliderService.createSlider called");
@@ -56,6 +56,7 @@ public class SliderService {
         }
 
         Slider slider = Slider.builder()
+                .store(com.sucrestore.api.entity.Store.builder().id(storeId).build())
                 .title(title)
                 .description(description)
                 .imageUrl(finalImageUrl)

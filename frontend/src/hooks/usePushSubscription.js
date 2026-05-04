@@ -4,6 +4,8 @@
  * et envoie la subscription au backend pour stockage.
  */
 
+import { getExplicitStoreCode } from "../services/store/storeContext";
+
 const VAPID_PUBLIC_KEY = "BFgwMeEPKmjceqgeKQqezk_yyf_FLa7LTW7eul_0HnSMfPfPFnKwH-fSGjxCUU5cmiCAdIvqlTJkSGUBkhPgFCw";
 
 function urlBase64ToUint8Array(base64String) {
@@ -36,11 +38,13 @@ export async function subscribeToPush(token) {
 
     // Envoie la subscription au backend
     const baseUrl = import.meta.env.VITE_API_URL || "/api";
+    const storeCode = getExplicitStoreCode();
     await fetch(`${baseUrl}/notifications/push/subscribe`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        ...(storeCode ? { "X-Store-Code": storeCode } : {}),
       },
       body: JSON.stringify(subscription),
     });

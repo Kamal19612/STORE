@@ -24,6 +24,7 @@ import com.sucrestore.api.config.AppProperties;
 public class FileStorageService {
 
     private final Path fileStorageLocation;
+    private static final long MAX_IMAGE_BYTES = 2L * 1024L * 1024L; // 2MB
 
     // @Autowired n'est pas nécessaire (Spring 4.3+)
     public FileStorageService(AppProperties appProperties) {
@@ -70,6 +71,32 @@ public class FileStorageService {
         } catch (IOException ex) {
             throw new RuntimeException("Impossible de stocker le fichier " + newFileName + ". Réessayez !", ex);
         }
+    }
+
+    /**
+     * Sauvegarde une image avec validations (type + taille).
+     *
+     * @param file Image envoyée.
+     * @return Nom de fichier généré.
+     */
+    public String storeProductImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("Fichier image manquant.");
+        }
+
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw new RuntimeException("Image trop volumineuse (max 2MB).");
+        }
+
+        String contentType = file.getContentType();
+        boolean isAllowed = "image/jpeg".equalsIgnoreCase(contentType)
+                || "image/jpg".equalsIgnoreCase(contentType)
+                || "image/png".equalsIgnoreCase(contentType);
+        if (!isAllowed) {
+            throw new RuntimeException("Format image non supporté. Formats autorisés: JPG, PNG.");
+        }
+
+        return storeFile(file);
     }
 
     /**

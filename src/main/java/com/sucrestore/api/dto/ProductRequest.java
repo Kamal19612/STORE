@@ -1,6 +1,7 @@
 package com.sucrestore.api.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -42,6 +43,12 @@ public class ProductRequest {
     // Ce champ sert si l'admin fournit une URL directe
     private String imageUrl;
 
+    /**
+     * Liste des URLs d'images secondaires conservées (utile lors d'une mise à jour).
+     * Les nouvelles images sont envoyées via Multipart et concaténées côté backend.
+     */
+    private List<String> secondaryImages;
+
     // Modifié : categoryId n'est plus @NotNull car on peut fournir un Nom
     private Long categoryId;
 
@@ -52,4 +59,9 @@ public class ProductRequest {
     private String externalId;
 
     private boolean active = true;
+
+    /**
+     * Autorisation de vente (import / admin). Distinct du stock (rupture).
+     */
+    private boolean purchaseAllowed = true;
 }

@@ -13,4 +13,8 @@ public interface SliderRepository extends JpaRepository<Slider, Long> {
     List<Slider> findAllByActiveTrueOrderByDisplayOrderDesc();
 
     List<Slider> findAllByOrderByDisplayOrderDesc();
+
+    // Multi-store scoped
+    List<Slider> findAllByActiveTrueAndStoreIdOrderByDisplayOrderDesc(Long storeId);
+    List<Slider> findAllByStoreIdOrderByDisplayOrderDesc(Long storeId);
 }

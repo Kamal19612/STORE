@@ -3,6 +3,7 @@ package com.sucrestore.api.service;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,7 @@ import com.sucrestore.api.dto.ProductResponse;
 import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.entity.Product;
 import com.sucrestore.api.repository.ProductRepository;
+import com.sucrestore.api.tenant.StoreContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,30 +40,33 @@ public class ProductService {
     private ProductRepository productRepository;
 
     /**
-     * Récupère une liste paginée de tous les produits actifs. Transforme les
-     * entités en DTO pour l'API.
+     * Liste paginée pour le catalogue public : tous les produits du magasin (même liste que l’admin),
+     * pour afficher aussi les ruptures / fiches encore {@code active=false} sans filtre côté SQL.
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> getAllActiveProducts(Pageable pageable) {
-        return productRepository.findByActiveTrue(pageable)
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return productRepository.findByStoreId(storeId, pageable)
                 .map(this::mapToResponse);
     }
 
     /**
-     * Récupère une liste paginée de produits par catégorie.
+     * Liste paginée par catégorie (tous les produits du magasin dans cette catégorie).
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> getProductsByCategory(Long categoryId, Pageable pageable) {
-        return productRepository.findByCategoryIdAndActiveTrue(categoryId, pageable)
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return productRepository.findByStoreIdAndCategoryId(storeId, categoryId, pageable)
                 .map(this::mapToResponse);
     }
 
     /**
-     * Recherche des produits par nom (recherche textuelle simple).
+     * Recherche par nom (tous les produits du magasin correspondant au texte).
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> searchProducts(String query, Pageable pageable) {
-        return productRepository.findByNameContainingIgnoreCaseAndActiveTrue(query, pageable)
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return productRepository.findByStoreIdAndNameContainingIgnoreCase(storeId, query, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -70,7 +75,8 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductResponse getProductBySlug(String slug) {
-        Product product = productRepository.findBySlug(slug)
+        Long storeId = StoreContext.getStoreIdOrNull();
+        Product product = productRepository.findBySlugAndStoreId(slug, storeId)
                 .orElseThrow(() -> new RuntimeException("Produit introuvable : " + slug));
 
         return mapToResponse(product);
@@ -90,12 +96,17 @@ public class ProductService {
                 .price(product.getPrice())
                 .oldPrice(product.getOldPrice())
                 .mainImage(product.getMainImage())
+                .secondaryImages(product.getSecondaryImages() == null ? List.of() : product.getSecondaryImages())
                 .categoryName(product.getCategory().getName())
                 .categorySlug(product.getCategory().getSlug())
                 .categoryId(product.getCategory().getId()) // Mappage ID Catégorie
                 .stock(product.getStock()) // Mappage Stock réel
                 .externalId(product.getExternalId()) // Mappage External ID
-                .available(product.getStock() > 0)
+                .purchaseAllowed(product.isPurchaseAllowed())
+                .available(product.isPurchaseAllowed()
+                    && product.getStock() != null
+                    && product.getStock() > 0
+                    && product.isActive())
                 .active(product.isActive()) // Mappage statut actif réel
                 .created(false) // Par défaut false, surchargé lors de l'import
                 .build();
@@ -107,12 +118,13 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public List<ProductResponse> getTopOrderedProducts(int limit) {
-        List<Product> topProducts = productRepository.findTopOrderedProducts(PageRequest.of(0, limit));
+        Long storeId = StoreContext.getStoreIdOrNull();
+        List<Product> topProducts = productRepository.findTopOrderedProductsByStore(storeId, PageRequest.of(0, limit));
 
         // Fallback : Si aucun produit commandé ou moins que la limite, compléter avec les produits actifs récents
         if (topProducts.size() < limit) {
             Page<Product> recentProducts = productRepository
-                .findByActiveTrueAndMainImageIsNotNullOrderByIdDesc(PageRequest.of(0, limit));
+                .findByActiveTrueAndMainImageIsNotNullAndStoreIdOrderByIdDesc(storeId, PageRequest.of(0, limit));
 
             // Fusionner les listes en évitant les doublons
             List<Product> combined = new java.util.ArrayList<>(topProducts);
@@ -136,7 +148,8 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> getAllProducts(Pageable pageable) {
-        return productRepository.findAll(pageable)
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return productRepository.findByStoreId(storeId, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -145,8 +158,12 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produit introuvable ID: " + id));
+            .orElseThrow(() -> new RuntimeException("Produit introuvable ID: " + id));
+        if (product.getStore() == null || product.getStore().getId() == null || !product.getStore().getId().equals(storeId)) {
+            throw new RuntimeException("Produit introuvable ID: " + id);
+        }
         return mapToResponse(product);
     }
 
@@ -157,8 +174,11 @@ public class ProductService {
      * Crée un nouveau produit.
      */
     @Transactional
-    public ProductResponse createProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl) {
+    public ProductResponse createProduct(com.sucrestore.api.dto.ProductRequest request, String imageUrl,
+            List<String> secondaryImageUrls) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         Product product = Product.builder()
+                .store(com.sucrestore.api.entity.Store.builder().id(storeId).build())
                 .name(request.getName())
                 .slug(request.getSlug())
                 .shortDescription(request.getShortDescription())
@@ -167,7 +187,9 @@ public class ProductService {
                 .oldPrice(request.getOldPrice())
                 .stock(request.getStock())
                 .active(request.isActive())
+                .purchaseAllowed(request.isPurchaseAllowed())
                 .mainImage(imageUrl) // URL ou chemin fichier
+                .secondaryImages(secondaryImageUrls == null ? new ArrayList<>() : new ArrayList<>(secondaryImageUrls))
                 .category(resolveCategory(request))
                 .build();
 
@@ -178,9 +200,14 @@ public class ProductService {
      * Met à jour un produit existant.
      */
     @Transactional
-    public ProductResponse updateProduct(Long id, com.sucrestore.api.dto.ProductRequest request, String imageUrl) {
+    public ProductResponse updateProduct(Long id, com.sucrestore.api.dto.ProductRequest request, String imageUrl,
+            List<String> newSecondaryImageUrls) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Produit introuvable ID: " + id));
+        if (product.getStore() == null || product.getStore().getId() == null || !product.getStore().getId().equals(storeId)) {
+            throw new RuntimeException("Produit introuvable ID: " + id);
+        }
 
         product.setName(request.getName());
         product.setSlug(request.getSlug());
@@ -190,11 +217,22 @@ public class ProductService {
         product.setOldPrice(request.getOldPrice());
         product.setStock(request.getStock());
         product.setActive(request.isActive());
+        product.setPurchaseAllowed(request.isPurchaseAllowed());
 
         // Mettre à jour l'image seulement si une nouvelle est fournie
         if (imageUrl != null && !imageUrl.isEmpty()) {
             product.setMainImage(imageUrl);
         }
+
+        // Images secondaires : la requête fournit la liste "conservée" (ordre inclus),
+        // puis on concatène les nouvelles images uploadées (si présentes).
+        List<String> keptSecondary = request.getSecondaryImages() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(request.getSecondaryImages());
+        if (newSecondaryImageUrls != null && !newSecondaryImageUrls.isEmpty()) {
+            keptSecondary.addAll(newSecondaryImageUrls);
+        }
+        product.setSecondaryImages(keptSecondary);
 
         // Gestion Catégorie (ID ou Nom)
         Category category = resolveCategory(request);
@@ -210,8 +248,12 @@ public class ProductService {
      */
     @Transactional
     public void deleteProduct(Long id) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Produit introuvable ID: " + id));
+        if (product.getStore() == null || product.getStore().getId() == null || !product.getStore().getId().equals(storeId)) {
+            throw new RuntimeException("Produit introuvable ID: " + id);
+        }
 
         product.setActive(false); // Soft delete
         productRepository.save(product);
@@ -236,23 +278,28 @@ public class ProductService {
      * Helper pour trouver ou créer une catégorie selon la requête.
      */
     private Category resolveCategory(com.sucrestore.api.dto.ProductRequest request) {
+        Long storeId = StoreContext.getStoreIdOrNull();
         // Priorité 1: Recherche par ID si présent
         if (request.getCategoryId() != null) {
-            return categoryRepository.findById(request.getCategoryId())
+            Category c = categoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new RuntimeException("Catégorie introuvable ID: " + request.getCategoryId()));
+            if (c.getStore() == null || c.getStore().getId() == null || !c.getStore().getId().equals(storeId)) {
+                throw new RuntimeException("Catégorie introuvable ID: " + request.getCategoryId());
+            }
+            return c;
         }
 
         // Priorité 2: Recherche ou Création par Nom
         if (request.getCategoryName() != null && !request.getCategoryName().trim().isEmpty()) {
             String name = request.getCategoryName().trim();
-            return categoryRepository.findByNameIgnoreCase(name)
-                    .orElseGet(() -> createNewCategory(name));
+            return categoryRepository.findByNameIgnoreCaseAndStoreId(name, storeId)
+                    .orElseGet(() -> createNewCategory(name, storeId));
         }
 
         throw new RuntimeException("Une catégorie (ID ou Nom) est requise.");
     }
 
-    private Category createNewCategory(String name) {
+    private Category createNewCategory(String name, Long storeId) {
         // Crée un slug basique
         String slug = name.toLowerCase()
                 .replaceAll("[^a-z0-9]", "-")
@@ -260,6 +307,7 @@ public class ProductService {
                 .replaceAll("^-|-$", "");
 
         Category newCategory = Category.builder()
+                .store(com.sucrestore.api.entity.Store.builder().id(storeId).build())
                 .name(name)
                 .slug(slug)
                 .active(true)
@@ -287,7 +335,8 @@ public class ProductService {
         // PRIORITÉ 1: Recherche par ExternalId (si fourni et non vide)
         if (externalId != null && !externalId.trim().isEmpty()) {
             log.debug("🔍 [IMPORT] Recherche par ExternalId: {}", externalId);
-            Optional<Product> existingByExternalId = productRepository.findByExternalId(externalId);
+            Long storeId = StoreContext.getStoreIdOrNull();
+            Optional<Product> existingByExternalId = productRepository.findByExternalIdAndStoreId(externalId, storeId);
             if (existingByExternalId.isPresent()) {
                 // Mise à jour du produit existant
                 log.info("🔄 [IMPORT] Produit existant trouvé par ExternalId: {}", externalId);
@@ -299,7 +348,8 @@ public class ProductService {
                 existingProduct.setVolumeWeight(request.getVolumeWeight()); // Volume/Poids
                 existingProduct.setPrice(request.getPrice());
                 existingProduct.setStock(request.getStock());
-                existingProduct.setActive(true); // Réactiver si importé
+                existingProduct.setActive(request.isActive());
+                existingProduct.setPurchaseAllowed(request.isPurchaseAllowed());
 
                 // NE PAS régénérer le slug - garder l'ancien pour éviter les liens cassés
                 if (imageUrl != null && !imageUrl.isEmpty()) {
@@ -324,11 +374,14 @@ public class ProductService {
 
         // PRIORITÉ 2: Recherche par Slug (pour compatibilité avec anciens produits sans externalId)
         log.debug("🔍 [IMPORT] Recherche par Slug: {}", request.getSlug());
-        return productRepository.findBySlug(request.getSlug())
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return productRepository.findBySlugAndStoreId(request.getSlug(), storeId)
                 .map(existingProduct -> {
-                    // Mise à jour + assignation de l'externalId si manquant
+                    // ID Sheet : renseigné → on le fixe ; vide → on retire l’ancien (évite désactivation « absent du Sheet »).
                     if (externalId != null && !externalId.trim().isEmpty()) {
-                        existingProduct.setExternalId(externalId);
+                        existingProduct.setExternalId(externalId.trim());
+                    } else {
+                        existingProduct.setExternalId(null);
                     }
 
                     existingProduct.setName(request.getName());
@@ -336,7 +389,8 @@ public class ProductService {
                     existingProduct.setDescription(request.getDescription());
                     existingProduct.setPrice(request.getPrice());
                     existingProduct.setStock(request.getStock());
-                    existingProduct.setActive(true);
+                    existingProduct.setActive(request.isActive());
+                    existingProduct.setPurchaseAllowed(request.isPurchaseAllowed());
 
                     if (imageUrl != null && !imageUrl.isEmpty()) {
                         existingProduct.setMainImage(imageUrl);
@@ -367,7 +421,10 @@ public class ProductService {
         log.info("➕ [IMPORT] Création nouveau produit - Nom: {}, ExternalID: {}, Active: {}", request.getName(), externalId, request.isActive());
 
         Product product = new Product();
-        product.setExternalId(externalId);
+        Long storeId = StoreContext.getStoreIdOrNull();
+        product.setStore(com.sucrestore.api.entity.Store.builder().id(storeId).build());
+        product.setExternalId(
+            externalId != null && !externalId.isBlank() ? externalId.trim() : null);
         product.setName(request.getName());
         product.setSlug(request.getSlug());
         product.setShortDescription(request.getShortDescription());
@@ -375,7 +432,8 @@ public class ProductService {
         product.setVolumeWeight(request.getVolumeWeight()); // Volume/Poids
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
-        product.setActive(request.isActive()); // Utilise la valeur de la requête au lieu de forcer true
+        product.setActive(request.isActive());
+        product.setPurchaseAllowed(request.isPurchaseAllowed());
         product.setMainImage(imageUrl);
 
         // Catégorie

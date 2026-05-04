@@ -16,12 +16,18 @@ const adminProductService = {
     const formData = new FormData();
 
     // Séparation des données JSON et du fichier
-    const { imageFile, ...jsonPayload } = productData;
+    const { imageFile, mainImageFile, secondaryImageFiles, ...jsonPayload } = productData;
 
     formData.append("product", JSON.stringify(jsonPayload));
 
-    if (imageFile) {
-      formData.append("image", imageFile);
+    // Compat: ancien champ "image" + nouveau "mainImage"
+    const effectiveMain = mainImageFile || imageFile;
+    if (effectiveMain) formData.append("mainImage", effectiveMain);
+
+    if (Array.isArray(secondaryImageFiles)) {
+      secondaryImageFiles.forEach((file) => {
+        if (file) formData.append("secondaryImages", file);
+      });
     }
 
     const response = await api.post("/admin/products", formData);
@@ -30,12 +36,17 @@ const adminProductService = {
 
   updateProduct: async (id, productData) => {
     const formData = new FormData();
-    const { imageFile, ...jsonPayload } = productData;
+    const { imageFile, mainImageFile, secondaryImageFiles, ...jsonPayload } = productData;
 
     formData.append("product", JSON.stringify(jsonPayload));
 
-    if (imageFile) {
-      formData.append("image", imageFile);
+    const effectiveMain = mainImageFile || imageFile;
+    if (effectiveMain) formData.append("mainImage", effectiveMain);
+
+    if (Array.isArray(secondaryImageFiles)) {
+      secondaryImageFiles.forEach((file) => {
+        if (file) formData.append("secondaryImages", file);
+      });
     }
 
     const response = await api.put(`/admin/products/${id}`, formData);
@@ -64,11 +75,12 @@ const adminProductService = {
     return response.data;
   },
 
-  importFromGoogleSheets: async (spreadsheetId) => {
-    let url = "/admin/products/import-google-sheets";
-    if (spreadsheetId) {
-      url += `?spreadsheetId=${encodeURIComponent(spreadsheetId)}`;
-    }
+  importFromGoogleSheets: async (spreadsheetId, sheetGid) => {
+    const params = new URLSearchParams();
+    if (spreadsheetId) params.set("spreadsheetId", spreadsheetId);
+    if (sheetGid != null && sheetGid !== "") params.set("sheetGid", String(sheetGid));
+    const q = params.toString();
+    const url = `/admin/products/import-google-sheets${q ? `?${q}` : ""}`;
     const response = await api.post(url);
     return response.data;
   },

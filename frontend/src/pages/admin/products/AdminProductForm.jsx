@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Save,
-  Upload,
-  Link as LinkIcon,
-  Image as ImageIcon,
-} from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { toast } from "react-toastify";
 import adminProductService from "../../../services/adminProductService";
 import productService from "../../../services/productService";
+import ProductImagesField from "../../../components/admin/ProductImagesField";
 
 const AdminProductForm = () => {
   const { id } = useParams();
@@ -32,10 +27,13 @@ const AdminProductForm = () => {
     description: "",
     imageUrl: "", // Pour l'URL directe (ex: Google Drive/Sheet)
     active: true,
+    purchaseAllowed: true,
   });
 
-  const [imageFile, setImageFile] = useState(null);
-  const [previewApiImage, setPreviewApiImage] = useState(null);
+  const [mainImageFile, setMainImageFile] = useState(null);
+  const [existingMainImageUrl, setExistingMainImageUrl] = useState(null);
+  const [secondaryImageFiles, setSecondaryImageFiles] = useState([]);
+  const [existingSecondaryImages, setExistingSecondaryImages] = useState([]);
 
   useEffect(() => {
     // Charger les catégories pour le select
@@ -68,10 +66,14 @@ const AdminProductForm = () => {
           stock: product.stock ?? 0,
           shortDescription: product.shortDescription || "",
           description: product.description || "",
-          imageUrl: product.mainImage || "",
+          imageUrl: "",
           active: product.active,
+          purchaseAllowed: product.purchaseAllowed !== false,
         });
-        setPreviewApiImage(product.mainImage);
+        setExistingMainImageUrl(product.mainImage || null);
+        setExistingSecondaryImages(product.secondaryImages || []);
+        setMainImageFile(null);
+        setSecondaryImageFiles([]);
       })
       .catch((e) => {
         console.error(e);
@@ -111,14 +113,6 @@ const AdminProductForm = () => {
     }
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setImageFile(e.target.files[0]);
-      // Reset URL si fichier choisi
-      setFormData((prev) => ({ ...prev, imageUrl: "" }));
-    }
-  };
-
   const calculateStock = (val) => {
     // Helper si besoin
     return val;
@@ -129,6 +123,16 @@ const AdminProductForm = () => {
     setLoading(true);
 
     try {
+      const hasMainImage =
+        !!mainImageFile ||
+        !!formData.imageUrl ||
+        (!!existingMainImageUrl && isEditMode);
+
+      if (!hasMainImage) {
+        toast.error("Image principale obligatoire (URL ou fichier).");
+        return;
+      }
+
       const payload = {
         ...formData,
         stock: parseInt(formData.stock),
@@ -136,7 +140,9 @@ const AdminProductForm = () => {
         oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : null,
         categoryName: formData.categoryName,
         categoryId: null, // On laisse le backend résoudre via le nom
-        imageFile, // Sera extrait par le service
+        mainImageFile,
+        secondaryImageFiles,
+        secondaryImages: existingSecondaryImages, // URLs conservées (suppression/ré-ordre côté UI)
       };
 
       if (isEditMode) {
@@ -301,67 +307,23 @@ const AdminProductForm = () => {
 
           {/* Image */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-4">
-              Image du produit
-            </label>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Option 1 : Lien externe */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" /> Via Lien (Recommandé si
-                  Google Sheet)
-                </p>
-                <input
-                  type="url"
-                  name="imageUrl"
-                  placeholder="https://exemple.com/image.jpg"
-                  value={formData.imageUrl}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-200 dark:border-white/20 rounded-xl focus:ring-2 focus:ring-primary outline-none bg-white dark:bg-[#1c191a] dark:text-white shadow-sm"
-                />
-              </div>
-
-              {/* Option 2 : Upload */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                  <Upload className="h-4 w-4" /> Ou Télécharger un fichier
-                </p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-500 dark:text-gray-400
-                              file:mr-4 file:py-2 file:px-4
-                              file:rounded-full file:border-0
-                              file:text-sm file:font-semibold
-                              file:bg-primary/10 file:text-primary
-                              hover:file:bg-primary/20
-                              dark:file:bg-white/10 dark:file:text-primary
-                            "
-                />
-              </div>
-            </div>
-
-            {/* Prévisualisation */}
-            {(formData.imageUrl || imageFile || previewApiImage) && (
-              <div className="mt-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                  Prévisualisation :
-                </p>
-                <div className="h-32 w-32 rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden bg-gray-50 dark:bg-[#1c191a] flex items-center justify-center">
-                  <img
-                    src={
-                      imageFile
-                        ? URL.createObjectURL(imageFile)
-                        : formData.imageUrl || previewApiImage
-                    }
-                    alt="Preview"
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              </div>
-            )}
+            <ProductImagesField
+              disabled={loading}
+              value={{
+                mainImageFile,
+                mainImageUrl: formData.imageUrl,
+                existingMainImageUrl,
+                existingSecondaryImages,
+                secondaryImageFiles,
+              }}
+              onChange={(next) => {
+                setMainImageFile(next.mainImageFile || null);
+                setExistingMainImageUrl(next.existingMainImageUrl || null);
+                setSecondaryImageFiles(next.secondaryImageFiles || []);
+                setExistingSecondaryImages(next.existingSecondaryImages || []);
+                setFormData((prev) => ({ ...prev, imageUrl: next.mainImageUrl || "" }));
+              }}
+            />
           </div>
 
           {/* Checkbox Actif */}
@@ -379,6 +341,23 @@ const AdminProductForm = () => {
               className="text-sm font-bold text-gray-700 dark:text-gray-300 select-none cursor-pointer"
             >
               Produit Actif (Visible sur la boutique) ?
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="purchaseAllowed"
+              name="purchaseAllowed"
+              checked={formData.purchaseAllowed}
+              onChange={handleChange}
+              className="w-5 h-5 text-primary border-gray-300 dark:border-gray-600 rounded focus:ring-primary bg-white dark:bg-[#1c191a]"
+            />
+            <label
+              htmlFor="purchaseAllowed"
+              className="text-sm font-bold text-gray-700 dark:text-gray-300 select-none cursor-pointer"
+            >
+              Autorisé à la vente (panier) — décocher pour bloquer l’achat sans retirer la fiche
             </label>
           </div>
         </div>

@@ -72,6 +72,21 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      */
     Page<Order> findByDeletedFalse(Pageable pageable);
 
+    // Multi-store scoped
+    Page<Order> findByDeletedFalseAndStoreId(Long storeId, Pageable pageable);
+    Optional<Order> findByIdAndStoreId(Long id, Long storeId);
+    Page<Order> findByStatusAndDeliveryAgentNullAndStoreId(Order.Status status, Long storeId, Pageable pageable);
+    Page<Order> findByDeliveryAgentUsernameAndStatusInAndStoreId(String username, List<Order.Status> statuses, Long storeId, Pageable pageable);
+
+    /**
+     * Export Google Sheets: toutes les commandes non supprimées.
+     */
+    @Query("SELECT o FROM Order o WHERE o.deleted = false ORDER BY o.createdAt DESC")
+    List<Order> findAllNotDeletedForExport();
+
+    @Query("SELECT o FROM Order o WHERE o.deleted = false AND o.store.id = :storeId ORDER BY o.createdAt DESC")
+    List<Order> findAllNotDeletedForExportByStore(@org.springframework.data.repository.query.Param("storeId") Long storeId);
+
     /**
      * Statistiques journalières des 7 derniers jours : [date, nbCommandes, revenu].
      * Retourne Object[] : [0]=LocalDate, [1]=Long count, [2]=BigDecimal sum

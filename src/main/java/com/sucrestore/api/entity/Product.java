@@ -1,5 +1,7 @@
 package com.sucrestore.api.entity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -7,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -15,6 +19,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,12 +34,30 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "products")
+@Table(
+    name = "products",
+    indexes = {
+        @Index(name = "idx_products_store_id", columnList = "store_id"),
+        @Index(name = "idx_products_store_active", columnList = "store_id,active")
+    },
+    uniqueConstraints = {
+        @UniqueConstraint(name = "ux_products_store_slug", columnNames = {"store_id", "slug"}),
+        @UniqueConstraint(name = "ux_products_store_external_id", columnNames = {"store_id", "external_id"})
+    }
+)
 public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Store owner (tenant).
+     * Nullable for backward compatibility until migrator attaches existing rows.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id")
+    private Store store;
 
     /**
      * Nom du produit
@@ -44,7 +68,7 @@ public class Product {
     /**
      * Slug unique pour l'URL (ex: "mon-super-produit")
      */
-    @Column(nullable = false, unique = true, length = 200)
+    @Column(nullable = false, length = 200)
     private String slug;
 
     /**
@@ -89,10 +113,19 @@ public class Product {
     private String mainImage;
 
     /**
+     * URLs des images secondaires (optionnelles)
+     */
+    @ElementCollection
+    @CollectionTable(name = "product_secondary_images", joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "image_url", length = 2048)
+    @Builder.Default
+    private List<String> secondaryImages = new ArrayList<>();
+
+    /**
      * ID externe provenant de Google Sheets (identifiant stable) Permet
      * d'identifier un produit de manière unique même si son nom change
      */
-    @Column(unique = true, length = 50)
+    @Column(length = 50)
     private String externalId;
 
     /**
@@ -100,6 +133,14 @@ public class Product {
      */
     @Builder.Default
     private boolean active = true;
+
+    /**
+     * Autorisation d'achat (aligné DISPONIBILITÉ PHP : DISPONIBLE, OUI, 1, TRUE).
+     * Distinct du stock (rupture) et de {@link #active} (fiche retirée / INACTIF).
+     */
+    @Column(name = "purchase_allowed", nullable = false)
+    @Builder.Default
+    private boolean purchaseAllowed = true;
 
     /**
      * Catégorie parente

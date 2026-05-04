@@ -14,6 +14,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.sucrestore.api.tenant.StoreContextFilter;
+
 /**
  * Classe de configuration principale de la sécurité Spring Security. Définit
  * les règles d'accès, les filtres et les gestionnaires d'authentification.
@@ -33,6 +35,9 @@ public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private StoreContextFilter storeContextFilter;
 
     /**
      * Configure le fournisseur d'authentification DAO (Data Access Object). Il
@@ -79,7 +84,7 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll() // Accès aux images sans authentification
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/telegram/webhook").permitAll()
+                        .requestMatchers("/api/telegram/**").permitAll()
                         .requestMatchers("/api/notifications/push/customer-subscribe").permitAll()
                         // Tout le reste nécessite une authentification
                         .anyRequest().authenticated()
@@ -90,6 +95,9 @@ public class SecurityConfig {
 
         // Ajoute notre filtre JWT *avant* le filtre standard UsernamePassword
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // Résolution du store après auth (empêche le spoofing de header en mode authentifié)
+        http.addFilterAfter(storeContextFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -102,7 +110,8 @@ public class SecurityConfig {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
         configuration.setAllowedOriginPatterns(java.util.List.of("*")); // Autorise tout (Dev)
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
+        // Keep headers explicit: SSE uses Last-Event-ID, and multi-store uses X-Store-Code.
+        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Store-Code", "Last-Event-ID"));
         configuration.setAllowCredentials(true);
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

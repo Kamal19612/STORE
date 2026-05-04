@@ -20,7 +20,7 @@ import com.sucrestore.api.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/delivery/devices")
-@PreAuthorize("hasRole('DELIVERY_AGENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('MANAGER')")
+@PreAuthorize("hasRole('DELIVERY') or hasRole('DELIVERY_AGENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('MANAGER')")
 public class DeliveryDeviceController {
 
     private final DeliveryDeviceTokenRepository tokenRepo;

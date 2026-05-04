@@ -10,7 +10,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +28,16 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "categories")
+@Table(
+    name = "categories",
+    indexes = {
+        @Index(name = "idx_categories_store_id", columnList = "store_id")
+    },
+    uniqueConstraints = {
+        @UniqueConstraint(name = "ux_categories_store_name", columnNames = {"store_id", "name"}),
+        @UniqueConstraint(name = "ux_categories_store_slug", columnNames = {"store_id", "slug"})
+    }
+)
 public class Category {
 
     @Id
@@ -32,15 +45,23 @@ public class Category {
     private Long id;
 
     /**
+     * Store owner (tenant).
+     * Nullable for backward compatibility until migrator attaches existing rows.
+     */
+    @ManyToOne
+    @JoinColumn(name = "store_id")
+    private Store store;
+
+    /**
      * Nom de la catégorie (ex: "Bien-être"). Unique.
      */
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String name;
 
     /**
      * Slug pour l'URL (ex: "bien-etre"). Unique.
      */
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String slug;
 
     /**

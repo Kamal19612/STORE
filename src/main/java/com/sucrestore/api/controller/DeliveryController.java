@@ -23,7 +23,7 @@ import com.sucrestore.api.entity.Order;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/delivery/orders")
-@PreAuthorize("hasRole('DELIVERY_AGENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+@PreAuthorize("hasRole('DELIVERY') or hasRole('DELIVERY_AGENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
 public class DeliveryController {
 
     @Autowired

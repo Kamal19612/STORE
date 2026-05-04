@@ -26,8 +26,10 @@ import com.sucrestore.api.dto.ProductRequest;
 import com.sucrestore.api.dto.ProductResponse;
 import com.sucrestore.api.entity.Category;
 import com.sucrestore.api.entity.Product;
+import com.sucrestore.api.entity.Store;
 import com.sucrestore.api.repository.CategoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
+import com.sucrestore.api.tenant.StoreContext;
 
 @ExtendWith(MockitoExtension.class)
 public class ProductServiceTest {
@@ -44,11 +46,16 @@ public class ProductServiceTest {
     private Product product;
     private Category category;
     private ProductRequest productRequest;
+    private Store store;
 
     @BeforeEach
     public void setUp() {
+        store = Store.builder().id(1L).code("sucre").name("SUCRE").build();
+        StoreContext.set(store);
+
         category = Category.builder()
                 .id(1L)
+                .store(store)
                 .name("Electronics")
                 .slug("electronics")
                 .active(true)
@@ -56,6 +63,7 @@ public class ProductServiceTest {
 
         product = Product.builder()
                 .id(1L)
+                .store(store)
                 .name("Laptop")
                 .slug("laptop")
                 .shortDescription("A powerful laptop")
@@ -75,39 +83,44 @@ public class ProductServiceTest {
         productRequest.setActive(true);
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        StoreContext.clear();
+    }
+
     @Test
     void testGetAllActiveProducts() {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Product> productPage = new PageImpl<>(List.of(product));
 
-        when(productRepository.findByActiveTrue(pageable)).thenReturn(productPage);
+        when(productRepository.findByStoreId(1L, pageable)).thenReturn(productPage);
 
         Page<ProductResponse> result = productService.getAllActiveProducts(pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals("Laptop", result.getContent().get(0).getName());
-        verify(productRepository, times(1)).findByActiveTrue(pageable);
+        verify(productRepository, times(1)).findByStoreId(1L, pageable);
     }
 
     @Test
     void testGetProductBySlug_Success() {
-        when(productRepository.findBySlug("laptop")).thenReturn(Optional.of(product));
+        when(productRepository.findBySlugAndStoreId("laptop", 1L)).thenReturn(Optional.of(product));
 
         ProductResponse result = productService.getProductBySlug("laptop");
 
         assertNotNull(result);
         assertEquals("Laptop", result.getName());
-        verify(productRepository, times(1)).findBySlug("laptop");
+        verify(productRepository, times(1)).findBySlugAndStoreId("laptop", 1L);
     }
 
     @Test
     void testGetProductBySlug_NotFound() {
-        when(productRepository.findBySlug("unknown")).thenReturn(Optional.empty());
+        when(productRepository.findBySlugAndStoreId("unknown", 1L)).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> productService.getProductBySlug("unknown"));
         assertEquals("Produit introuvable : unknown", exception.getMessage());
-        verify(productRepository, times(1)).findBySlug("unknown");
+        verify(productRepository, times(1)).findBySlugAndStoreId("unknown", 1L);
     }
 
     @Test
@@ -115,7 +128,7 @@ public class ProductServiceTest {
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(productRepository.save(any(Product.class))).thenReturn(product);
 
-        ProductResponse result = productService.createProduct(productRequest, "image-url.jpg");
+        ProductResponse result = productService.createProduct(productRequest, "image-url.jpg", java.util.List.of());
 
         assertNotNull(result);
         assertEquals("Laptop", result.getName());

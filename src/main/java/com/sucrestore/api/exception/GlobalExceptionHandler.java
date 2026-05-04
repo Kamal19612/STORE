@@ -16,6 +16,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -51,6 +53,30 @@ public class GlobalExceptionHandler {
         logger.warn("HttpMessageNotReadableException: {}", ex.getMessage());
         Map<String, String> response = new HashMap<>();
         response.put("message", "Corps JSON invalide ou incompatible avec l'API : " + ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+            .findFirst()
+            .map(err -> err.getField() + " " + (err.getDefaultMessage() == null ? "invalide" : err.getDefaultMessage()))
+            .orElse("Paramètres invalides.");
+        logger.warn("MethodArgumentNotValidException: {}", msg);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", msg);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, String>> handleConstraintViolation(ConstraintViolationException ex) {
+        String msg = ex.getConstraintViolations().stream()
+            .findFirst()
+            .map(v -> v.getPropertyPath() + " " + v.getMessage())
+            .orElse("Paramètres invalides.");
+        logger.warn("ConstraintViolationException: {}", msg);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", msg);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 

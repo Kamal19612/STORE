@@ -5,12 +5,15 @@ import { toast } from "react-toastify";
 import adminUserService from "../../../services/adminUserService";
 import Tesseract from "tesseract.js";
 import { parseBurkinaCnib } from "../../../utils/cnibOcrParser";
+import useAuthStore from "../../../store/authStore";
 
 const AdminUserForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
   const isEditMode = !!id;
+  const currentRole = useAuthStore((s) => s.user?.role);
+  const canAssignSensitiveRoles = currentRole === "SUPER_ADMIN";
 
   const [formData, setFormData] = useState({
     username: "",
@@ -120,8 +123,8 @@ const AdminUserForm = () => {
           "Erreur Extension Navigateur (Réessayez en navigation privée)",
         );
       } else if (status === 403) {
-        // Vrai refus Spring Security (ex: pas SUPER_ADMIN sur POST /admin/users)
-        toast.error("Permission refusée (Super Admin requis)");
+        // Vrai refus Spring Security (JWT manquant / rôle insuffisant au niveau API)
+        toast.error("Permission refusée");
       } else {
         // IMPORTANT: ne pas se baser sur la présence de "403" dans le texte
         // (ex: erreurs Supabase "403 not_admin" renvoyées en 400 par l'API).
@@ -294,8 +297,10 @@ const AdminUserForm = () => {
                 >
                   <option value="MANAGER">Manager (Produits/Commandes)</option>
                   <option value="DELIVERY_AGENT">Livreur</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="SUPER_ADMIN">Super Admin (Accès Total)</option>
+                  {canAssignSensitiveRoles && <option value="ADMIN">Admin</option>}
+                  {canAssignSensitiveRoles && (
+                    <option value="SUPER_ADMIN">Super Admin (Accès Total)</option>
+                  )}
                 </select>
               </div>
             </div>

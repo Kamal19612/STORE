@@ -35,7 +35,12 @@ const PrivateRoute = ({ children, allowedRoles = [] }) => {
   }
 
   // Vérifier les rôles si spécifiés
-  if (allowedRoles.length > 0 && user?.role) {
+  if (allowedRoles.length > 0) {
+    // Si le rôle n'est pas chargé, on refuse l'accès (évite un bypass silencieux).
+    if (!user?.role) {
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
     if (!allowedRoles.includes(user.role)) {
       // Rediriger vers dashboard approprié si rôle non autorisé
       if (user.role === "DELIVERY_AGENT") {

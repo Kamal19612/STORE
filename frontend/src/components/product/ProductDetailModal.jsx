@@ -7,6 +7,17 @@ const ProductDetailModal = ({ product, onClose }) => {
 
   if (!product) return null;
 
+  const isArchived = product.active === false;
+  const stockNum = Number(product.stock) || 0;
+  const purchaseAllowed = product.purchaseAllowed !== false;
+  const isPurchasable =
+    typeof product.available === "boolean"
+      ? product.available
+      : !isArchived && purchaseAllowed && stockNum > 0;
+  const canPurchase = isPurchasable;
+  const isRuptureOnly =
+    !isArchived && purchaseAllowed && stockNum === 0 && !isPurchasable;
+
   // Format price helper
   const formatPrice = (price) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
@@ -16,6 +27,7 @@ const ProductDetailModal = ({ product, onClose }) => {
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
+    if (!canPurchase) return;
     if (isInCart) {
       const removeItem = useCartStore.getState().removeItem;
       removeItem(product.id);
@@ -129,7 +141,7 @@ const ProductDetailModal = ({ product, onClose }) => {
                 </p>
               </div>
 
-              {product.available ? (
+              {canPurchase ? (
                 <button
                   onClick={handleAddToCart}
                   className={`w-full py-3 rounded-lg font-bold transition flex items-center justify-center text-sm sm:text-base ${isInCart ? "bg-green-500 text-white" : ""}`}
@@ -150,7 +162,12 @@ const ProductDetailModal = ({ product, onClose }) => {
                   className="w-full bg-gray-400 text-white py-3 rounded-lg font-bold cursor-not-allowed text-sm sm:text-base"
                   disabled
                 >
-                  <i className="fas fa-times mr-2"></i>Non disponible
+                  <i className="fas fa-times mr-2"></i>
+                  {isArchived
+                    ? "Produit archivé"
+                    : isRuptureOnly
+                      ? "Rupture de stock"
+                      : "Non disponible"}
                 </button>
               )}
             </div>

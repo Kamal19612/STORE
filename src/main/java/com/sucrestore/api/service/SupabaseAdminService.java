@@ -2,13 +2,17 @@ package com.sucrestore.api.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
@@ -81,6 +85,15 @@ public class SupabaseAdminService {
             return id.toString();
         } catch (HttpStatusCodeException e) {
             String responseBody = e.getResponseBodyAsString(StandardCharsets.UTF_8);
+            // If the email already exists in Supabase Auth, re-use the existing user id instead of failing.
+            // This avoids blocking admin user creation when the Supabase Auth account was created earlier.
+            int status = e.getStatusCode().value();
+            if ((status == 400 || status == 422) && looksLikeEmailAlreadyRegistered(responseBody)) {
+                String existing = getAuthUserIdByEmail(email, baseUrl, serviceKey);
+                if (existing != null && !existing.isBlank()) {
+                    return existing;
+                }
+            }
             throw new RuntimeException(
                     "Supabase Auth (admin) a refusé la création utilisateur (HTTP "
                             + e.getStatusCode().value()
@@ -94,6 +107,65 @@ public class SupabaseAdminService {
                             + url
                             + ". Vérifiez SUPABASE_URL (ex. https://votre-kong/public). Détail: "
                             + e.getMessage());
+        }
+    }
+
+    private boolean looksLikeEmailAlreadyRegistered(String responseBody) {
+        if (responseBody == null) {
+            return false;
+        }
+        String s = responseBody.toLowerCase();
+        return s.contains("already been registered")
+                || s.contains("already registered")
+                || s.contains("user already registered")
+                || s.contains("email_exists")
+                || s.contains("email already") // keep broad: Supabase/GoTrue wording differs across versions
+                || s.contains("duplicate");
+    }
+
+    /**
+     * Attempts to resolve the Supabase Auth user id from an email address using the Admin API.
+     * Tries to be resilient to response-shape differences (array vs {users:[...]}).
+     */
+    private String getAuthUserIdByEmail(String email, String baseUrl, String serviceKey) {
+        try {
+            String url = baseUrl.replaceAll("/+$", "") + "/auth/v1/admin/users";
+
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("page", 1)
+                    .queryParam("per_page", 200);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("apikey", serviceKey);
+            headers.setBearerAuth(serviceKey);
+
+            RestTemplate rt = new RestTemplate();
+            ResponseEntity<String> res = rt.exchange(
+                    b.toUriString(),
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String.class);
+
+            if (!res.getStatusCode().is2xxSuccessful() || res.getBody() == null) {
+                return null;
+            }
+
+            JsonNode root = objectMapper.readTree(res.getBody());
+            JsonNode users = root.isArray() ? root : root.path("users");
+            if (users != null && users.isArray()) {
+                for (JsonNode u : users) {
+                    String em = u.path("email").asText("");
+                    if (email.equalsIgnoreCase(em)) {
+                        String id = u.path("id").asText("");
+                        if (!id.isBlank()) {
+                            return id;
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

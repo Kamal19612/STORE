@@ -25,12 +25,14 @@ import com.sucrestore.api.entity.Order;
 import com.sucrestore.api.entity.OrderItem;
 import com.sucrestore.api.entity.OrderStatusHistory;
 import com.sucrestore.api.entity.Product;
+import com.sucrestore.api.entity.DeliveryAssignment;
 import com.sucrestore.api.notification.NotificationChannel;
 import com.sucrestore.api.notification.NotificationRunner;
 import com.sucrestore.api.repository.OrderRepository;
 import com.sucrestore.api.repository.OrderStatusHistoryRepository;
 import com.sucrestore.api.repository.ProductRepository;
 import com.sucrestore.api.entity.NotificationOutbox;
+import com.sucrestore.api.tenant.StoreContext;
 
 /**
  * Service gérant la logique métier pour les commandes (Checkout).
@@ -57,6 +59,9 @@ public class OrderService {
 
     @Autowired
     private com.sucrestore.api.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.sucrestore.api.repository.DeliveryAssignmentRepository deliveryAssignmentRepository;
 
     @Autowired
     private NotificationRunner notificationRunner;
@@ -89,6 +94,7 @@ public class OrderService {
      */
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
+        Long storeId = StoreContext.getStoreIdOrNull();
 
         // 1. Générer un numéro de commande unique (ex: ORD-171569854)
         String orderNumber = "ORD-" + System.currentTimeMillis();
@@ -109,6 +115,7 @@ public class OrderService {
 
         // 3. Initialiser la commande
         Order order = Order.builder()
+                .store(com.sucrestore.api.entity.Store.builder().id(storeId).build())
                 .orderNumber(orderNumber)
                 .confirmationCode(confirmationCode)
                 .customerName(request.getCustomerName())
@@ -134,6 +141,16 @@ public class OrderService {
         for (OrderItemRequest itemRequest : request.getItems()) {
             Product product = productRepository.findById(itemRequest.getProductId())
                     .orElseThrow(() -> new RuntimeException("Produit non trouvé ID: " + itemRequest.getProductId()));
+            if (product.getStore() == null || product.getStore().getId() == null || !product.getStore().getId().equals(storeId)) {
+                throw new RuntimeException("Produit non trouvé ID: " + itemRequest.getProductId());
+            }
+
+            if (!product.isActive()) {
+                throw new RuntimeException("Produit non disponible à la vente : " + product.getName());
+            }
+            if (!product.isPurchaseAllowed()) {
+                throw new RuntimeException("Produit non disponible à la vente : " + product.getName());
+            }
 
             // Vérification stock
             if (product.getStock() < itemRequest.getQuantity()) {
@@ -270,6 +287,11 @@ public class OrderService {
         String currency = appProperties.getCurrency() != null ? appProperties.getCurrency() : "FCFA";
         String whatsappNumber = appSettingService.getSettingValue("whatsapp_number")
                 .orElse(appProperties.getWhatsappNumber());
+        String whatsappDest = formatPhoneNumberForWhatsApp(whatsappNumber);
+        if (whatsappDest.isBlank()) {
+            // Ne bloque pas la création de commande, mais le CTA WhatsApp sera absent côté frontend.
+            return "";
+        }
 
         message.append("*NOUVELLE COMMANDE ").append(storeName).append("*").append("\n\n");
         message.append("Commande: #").append(order.getOrderNumber()).append("\n");
@@ -310,7 +332,7 @@ public class OrderService {
         }
 
         try {
-            return "https://wa.me/" + whatsappNumber + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
+            return "https://wa.me/" + whatsappDest + "?text=" + URLEncoder.encode(message.toString(), StandardCharsets.UTF_8.toString());
         } catch (java.io.UnsupportedEncodingException e) {
             return "";
         }
@@ -389,7 +411,8 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Order> getAllOrders(org.springframework.data.domain.Pageable pageable) {
-        return orderRepository.findByDeletedFalse(pageable);
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return orderRepository.findByDeletedFalseAndStoreId(storeId, pageable);
     }
 
     /**
@@ -397,8 +420,21 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public Order getOrderById(Long id) {
-        return orderRepository.findById(id)
+        // Delivery is global: can access orders of all stores.
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isGlobalDelivery = auth != null && auth.getAuthorities() != null
+            && auth.getAuthorities().stream().anyMatch(a ->
+                "ROLE_DELIVERY".equals(a.getAuthority()) || "ROLE_DELIVERY_AGENT".equals(a.getAuthority())
+            );
+
+        if (isGlobalDelivery) {
+            return orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Commande introuvable ID: " + id));
+        }
+
+        Long storeId = StoreContext.getStoreIdOrNull();
+        return orderRepository.findByIdAndStoreId(id, storeId)
+            .orElseThrow(() -> new RuntimeException("Commande introuvable ID: " + id));
     }
 
     /**
@@ -434,13 +470,13 @@ public class OrderService {
             statusHistoryRepository.save(history);
 
             // Notification temps réel pour les admins (mise à jour statut)
-            Map<String, Object> statusData = Map.of(
-                    "id", savedOrder.getId(),
-                    "orderNumber", savedOrder.getOrderNumber(),
-                    "status", newStatus.name(),
-                    "actorUsername", actorUsername,
-                    "actorRole", actorRole
-            );
+            // NOTE: Map.of() n'accepte pas les valeurs null (ex: action automatique / Telegram).
+            Map<String, Object> statusData = new java.util.HashMap<>();
+            statusData.put("id", savedOrder.getId());
+            statusData.put("orderNumber", savedOrder.getOrderNumber());
+            statusData.put("status", newStatus.name());
+            statusData.put("actorUsername", actorUsername == null ? "" : actorUsername);
+            statusData.put("actorRole", actorRole == null ? "" : actorRole);
             final String ord = savedOrder.getOrderNumber();
             notificationRunner.executeNotification(NotificationChannel.SSE, ord,
                 () -> notificationService.notifyAdmins("order_status", statusData));
@@ -636,17 +672,28 @@ public class OrderService {
         }
         // Garder uniquement les chiffres
         String cleaned = phone.replaceAll("[^0-9]", "");
+        if (cleaned.isBlank()) {
+            return "";
+        }
 
         // Retirer les 00 du début si présents
         if (cleaned.startsWith("00")) {
             cleaned = cleaned.substring(2);
         }
 
-        // Ajouter 226 si le numéro ne commence pas par un indicatif connu (supposition 226 par défaut)
-        // On suppose que si le numéro fait 8 chiffres (cas BF), on ajoute 226.
-        // Si le numéro commence déjà par 226, on laisse.
-        if (!cleaned.startsWith("226")) {
-            return "226" + cleaned;
+        // Préfixe par défaut piloté par l'admin (checkout).
+        // Exemple: settings.customer_whatsapp_dial_code="+226" → dialDigits="226".
+        String dialDigits = appSettingService.getSettingValue("customer_whatsapp_dial_code")
+            .map(v -> v.replaceAll("[^0-9]", ""))
+            .orElse("226");
+        if (dialDigits.isBlank()) {
+            dialDigits = "226";
+        }
+
+        // Si le numéro est local (souvent <= 8 chiffres) et n'a pas déjà l'indicatif,
+        // on ajoute l'indicatif configuré.
+        if (!cleaned.startsWith(dialDigits) && cleaned.length() <= 8) {
+            return dialDigits + cleaned;
         }
 
         return cleaned;
@@ -735,6 +782,16 @@ public class OrderService {
 
         Order saved = orderRepository.save(order);
 
+        // Central assignment table (audit)
+        DeliveryAssignment assign = deliveryAssignmentRepository.findByOrderId(saved.getId())
+            .orElseGet(() -> DeliveryAssignment.builder()
+                .order(saved)
+                .status(DeliveryAssignment.Status.CLAIMED)
+                .build());
+        assign.setDeliveryUser(agent);
+        assign.setStatus(DeliveryAssignment.Status.CLAIMED);
+        deliveryAssignmentRepository.save(assign);
+
         try {
             Map<String, Object> statusData = Map.of(
                 "id", saved.getId(),
@@ -775,6 +832,11 @@ public class OrderService {
         order.setStatus(Order.Status.DELIVERED);
         Order saved = orderRepository.save(order);
 
+        deliveryAssignmentRepository.findByOrderId(saved.getId()).ifPresent(a -> {
+            a.setStatus(DeliveryAssignment.Status.DELIVERED);
+            deliveryAssignmentRepository.save(a);
+        });
+
         try {
             Map<String, Object> statusData = Map.of(
                 "id", saved.getId(),
@@ -809,6 +871,12 @@ public class OrderService {
 
         order.setStatus(Order.Status.CANCELLED);
         Order saved = orderRepository.save(order);
+
+        deliveryAssignmentRepository.findByOrderId(saved.getId()).ifPresent(a -> {
+            a.setStatus(DeliveryAssignment.Status.FAILED);
+            a.setNote(reason != null ? reason : "");
+            deliveryAssignmentRepository.save(a);
+        });
 
         try {
             OrderStatusHistory history = OrderStatusHistory.builder()

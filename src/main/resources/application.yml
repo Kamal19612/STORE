@@ -2,11 +2,18 @@ spring:
   devtools:
     restart:
       enabled: false   # Désactivé : le restart classloader de DevTools brise le scan JPA des entités
+  # Plusieurs @Scheduled (Sheets produits, Sheets commandes, notifications, outbox) : pool trop petit = synchros retardées.
+  task:
+    scheduling:
+      pool:
+        size: 8
   datasource:
-    # Utiliser Postgres Supabase exposé via docker-compose (5434 → supabase-db:${POSTGRES_PORT})
-    # Évite le pooler (5433) qui nécessite un tenant/user spécifique.
-    url: jdbc:postgresql://localhost:5434/postgres
-    username: postgres
+    # Par défaut, on pointe vers Supabase CLI (db.port=54322 dans supabase/config.toml).
+    # Vous pouvez surcharger via:
+    # - DB_JDBC_URL (prioritaire), ou
+    # - DB_HOST / DB_PORT / DB_NAME
+    url: ${DB_JDBC_URL:jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5434}/${DB_NAME:postgres}}
+    username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   servlet:
@@ -55,9 +62,12 @@ app:
   # Spring ne lit pas supabase/.env : en local, sourcez STORE/scripts/load-supabase-env.sh
   # ou exportez SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + DB_PASSWORD (voir ce script).
   supabase:
-    url: ${SUPABASE_URL:http://127.0.0.1:8000}
-    # OBLIGATOIRE en prod : SERVICE_ROLE_KEY depuis supabase/.env (pas ANON_KEY).
-    # Laisser vide par défaut évite d'appeler Supabase avec une mauvaise clé par erreur.
+    # En prod, SUPABASE_URL doit pointer vers votre projet Supabase (ex: https://<project-ref>.supabase.co)
+    # ou vers votre gateway Kong publique si vous en avez une.
+    # Ne pas mettre de valeur par défaut ici : sinon la prod peut tenter 127.0.0.1 et échouer "connection refused".
+    url: ${SUPABASE_URL:}
+    # OBLIGATOIRE si vous utilisez l'Admin API Supabase (création d'utilisateurs).
+    # Doit être la valeur SERVICE_ROLE_KEY (jamais ANON_KEY).
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
 
   delivery:
@@ -72,12 +82,31 @@ app:
 google:
   sheets:
     application-name: "Sucre Store API"
-    credentials-file-path: "classpath:credentials.json"
+    # Utiliser un fichier local via env (recommandé), sinon classpath.
+    # Ex: export GOOGLE_SHEETS_CREDENTIALS_PATH=/var/secrets/sucre/credentials.json
+    credentials-file-path: ${GOOGLE_SHEETS_CREDENTIALS_PATH:${GOOGLE_APPLICATION_CREDENTIALS:classpath:credentials.json}}
     spreadsheet-id: "" # ID par défaut retiré pour éviter la synchro démo. L'ID sera lu depuis la base de données.
-    sync-rate: 60000 # Taux de synchronisation en millisecondes (60000ms = 1 minute)
+    # fixedDelay : délai entre la fin d’un import et le début du suivant (évite chevauchements si l’import est long).
+    sync-rate: 60000 # millisecondes (60000 = 1 minute après la fin de la synchro précédente)
+    sync-initial-delay: 15000 # première synchro 15 s après démarrage (laisse le temps au contexte / DB)
+    # Import produits : auto = export CSV public (sans OAuth) puis repli API ; csv / api = forcer une voie
+    product-import-mode: ${GOOGLE_SHEETS_PRODUCT_IMPORT_MODE:auto}
+    # csv-export-sheet-gid: (optionnel) gid de l’onglet = paramètre &gid= dans l’URL du Sheet ; sinon 1er onglet
+    http-connect-timeout-ms: 15000
+    http-read-timeout-ms: 120000
+
+orders:
+  sheets:
+    # Synchronisation automatique des commandes vers Google Sheets
+    # - activable/désactivable en DB via app_settings.google_orders_sheet_sync_enabled
+    # - fixedDelay en ms (60000 = 1 minute après la fin de l’export précédent)
+    sync-rate: 60000
+    sync-initial-delay: 45000 # décalé par rapport à la synchro produits pour limiter la charge au démarrage
 
 server:
   port: 8081
   shutdown: immediate   # Fermeture immédiate — évite le blocage par les connexions SSE longue durée
+  # Behind reverse proxies, ensure Spring uses X-Forwarded-* headers (Host, Proto, Port).
+  forward-headers-strategy: framework
 
 

@@ -1,6 +1,7 @@
 package com.sucrestore.api.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import lombok.Builder;
 import lombok.Data;
@@ -21,12 +22,16 @@ public class ProductResponse {
     private BigDecimal price;
     private BigDecimal oldPrice;
     private String mainImage;
+    private List<String> secondaryImages;
     private String categoryName;
     private String categorySlug;
     private Long categoryId; // Ajouté pour l'édition Admin
     private Integer stock; // Ajouté pour l'édition Admin
     private String externalId; // ID externe de Google Sheets
-    private boolean available; // basé sur stock > 0
+    /** Peut-on ajouter au panier : {@code purchaseAllowed && stock > 0 && active}. */
+    private boolean available;
+    /** DISPONIBILITÉ sheet / admin : autorisé à la vente (distinct de la rupture stock). */
+    private boolean purchaseAllowed;
     private boolean active; // Statut actif réel (pour l'édition Admin)
     private boolean created; // Utilisé pour l'import (vrai si créé, faux si mis à jour)
 }

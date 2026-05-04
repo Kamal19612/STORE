@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+const storeCode = import.meta.env.VITE_STORE_CODE || "sucre";
+
 const useCartStore = create(
   persist(
     (set, get) => ({
@@ -54,7 +56,7 @@ const useCartStore = create(
       },
     }),
     {
-      name: "sucre-store-cart",
+      name: `cart_${storeCode}`,
       onRehydrateStorage: () => () => {
         useCartStore.setState({ _hydrated: true });
       },
