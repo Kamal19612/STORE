@@ -115,4 +115,14 @@ server:
   # Behind reverse proxies, ensure Spring uses X-Forwarded-* headers (Host, Proto, Port).
   forward-headers-strategy: framework
 
+# Logs : évite les fichiers énormes (backend.log multi-Go) et garde un historique.
+logging:
+  file:
+    name: logs/sucre-store-api.log
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      total-size-cap: 500MB
+      max-history: 14
+
 

@@ -125,7 +125,7 @@ const ProductCard = ({ product }) => {
             )}
             {!isArchived &&
               !isPurchasable &&
-              !(purchaseAllowed && stockNum === 0) && (
+              stockNum !== 0 && (
                 <div
                   className="text-white text-xs px-2 py-1 rounded"
                   style={{ backgroundColor: "var(--secondary)" }}

@@ -82,6 +82,107 @@ public class GoogleSheetsService {
     private static final Pattern AVAILABILITY_NEGATIVE_NON = Pattern.compile("(?i)\\bnon\\b");
 
     /**
+     * Mapping de colonnes basé sur l'en-tête du Sheet (plus robuste que des index fixes).
+     * Si une colonne n'est pas trouvée, l'import retombe sur l'ancien mapping indexé.
+     */
+    private record ProductSheetColumns(
+            int externalId,
+            int imageUrl,
+            int name,
+            int description,
+            int volumeWeight,
+            int categoryName,
+            int availability,
+            int price) {
+    }
+
+    private static String normalizeHeaderCell(String raw) {
+        if (raw == null) return "";
+        String t = raw.trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty()) return "";
+        // Supprime accents + ponctuation pour matcher "Nom du produit", "NOM", "nom_produit", etc.
+        t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        t = t.replaceAll("[^a-z0-9]+", " ").trim();
+        return t;
+    }
+
+    private static boolean looksLikeProductHeaderRow(List<Object> row) {
+        if (row == null || row.isEmpty()) return false;
+        int hits = 0;
+        for (Object c : row) {
+            String h = normalizeHeaderCell(c == null ? "" : String.valueOf(c));
+            if (h.isEmpty()) continue;
+            if (h.contains("nom") || h.contains("name")) hits++;
+            if (h.contains("categorie") || h.contains("category")) hits++;
+            if (h.contains("prix") || h.contains("price")) hits++;
+            if (h.contains("disponibilite") || h.contains("disponible") || h.contains("availability")) hits++;
+        }
+        return hits >= 2;
+    }
+
+    private static int findHeaderRowIndex(List<List<Object>> values) {
+        if (values == null) return -1;
+        int maxProbe = Math.min(values.size(), 25);
+        for (int i = 0; i < maxProbe; i++) {
+            if (looksLikeProductHeaderRow(values.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int headerIndexOf(java.util.Map<String, Integer> idx, String... keys) {
+        for (String k : keys) {
+            Integer v = idx.get(k);
+            if (v != null) return v.intValue();
+        }
+        return -1;
+    }
+
+    private static ProductSheetColumns buildProductColumnsFromHeader(List<Object> headerRow) {
+        if (headerRow == null) return null;
+        java.util.Map<String, Integer> idx = new java.util.HashMap<>();
+        for (int i = 0; i < headerRow.size(); i++) {
+            String h = normalizeHeaderCell(headerRow.get(i) == null ? "" : String.valueOf(headerRow.get(i)));
+            if (!h.isEmpty() && !idx.containsKey(h)) {
+                idx.put(h, i);
+            }
+        }
+
+        // Nom (obligatoire) : essaye plusieurs libellés courants
+        int name = headerIndexOf(idx,
+                "nom", "nom du produit", "produit", "designation", "designation du produit", "name", "product name");
+        // Catégorie
+        int category = headerIndexOf(idx, "categorie", "categorie produit", "category", "category name");
+        // Prix
+        int price = headerIndexOf(idx, "prix", "price", "prix unitaire", "tarif");
+        // Disponibilité / stock
+        int avail = headerIndexOf(idx, "disponibilite", "disponibilite stock", "disponible", "stock", "availability");
+        // ID / Code
+        int externalId = headerIndexOf(idx, "id", "code", "id produit", "product id", "external id");
+        // Photo / image url
+        int image = headerIndexOf(idx, "photo", "image", "image url", "url image", "url", "photo url");
+        // Description / mode d'emploi
+        int desc = headerIndexOf(idx, "mode d emploi", "mode emploi", "description", "details", "instructions");
+        // Volume / poids
+        int vol = headerIndexOf(idx, "volume poids", "volume", "poids", "volume/poids", "volume poids (ex 50ml)");
+
+        // Si on n'a même pas la colonne nom, on considère que l'en-tête n'est pas exploitable
+        if (name < 0) return null;
+
+        return new ProductSheetColumns(
+                externalId >= 0 ? externalId : 0,
+                image >= 0 ? image : 1,
+                name,
+                desc >= 0 ? desc : 3,
+                vol >= 0 ? vol : 4,
+                category >= 0 ? category : 5,
+                avail >= 0 ? avail : 6,
+                price >= 0 ? price : 7);
+    }
+
+    /**
      * Initialise et retourne le service Sheets API.
      */
     private Sheets getSheetsService() throws IOException, GeneralSecurityException {
@@ -332,6 +433,18 @@ public class GoogleSheetsService {
                 try {
                     values = fetchValuesViaPublicCsvExport(finalSpreadsheetId, resolvedGid);
                     sourceLabel = "export CSV public (gid=" + resolvedGid + ")";
+                    // Sanity check: le CSV peut viser le mauvais onglet (gid absent) ou une feuille "catégories"
+                    // et ne pas contenir la colonne Nom. Dans ce cas, on bascule sur l'API (ranges nommés).
+                    int hdr = findHeaderRowIndex(values);
+                    ProductSheetColumns detected = hdr >= 0 ? buildProductColumnsFromHeader(values.get(hdr)) : null;
+                    if (detected == null) {
+                        log.warn(
+                            "Export CSV téléchargé mais en-tête produits non reconnu (gid={}): bascule vers API Google Sheets. "
+                                + "Astuce: passez sheetGid (onglet produits) ou définissez app_settings.google_sheet_gid.",
+                            resolvedGid);
+                        values = null;
+                        sourceLabel = null;
+                    }
                 } catch (IOException | CsvException e) {
                     csvFailure = e;
                     log.warn("Export CSV public indisponible ou invalide: {}", e.getMessage());
@@ -492,24 +605,50 @@ public class GoogleSheetsService {
         int rowNum = 0;
         int processedCount = 0;
         int skippedCount = 0;
+
+        int headerIdx0 = findHeaderRowIndex(values);
+        List<Object> headerRow = (headerIdx0 >= 0 && headerIdx0 < values.size()) ? values.get(headerIdx0) : null;
+        ProductSheetColumns cols = buildProductColumnsFromHeader(headerRow);
+        if (headerIdx0 >= 0) {
+            log.info("En-tête détecté à la ligne {}: {}", headerIdx0 + 1, headerRow);
+        } else {
+            log.warn("En-tête non détecté dans les 25 premières lignes — fallback indexé (A:H).");
+        }
+        if (cols != null) {
+            log.info("Mapping colonnes détecté: externalId={}, imageUrl={}, name={}, description={}, volumeWeight={}, category={}, availability={}, price={}",
+                    cols.externalId(), cols.imageUrl(), cols.name(), cols.description(), cols.volumeWeight(),
+                    cols.categoryName(), cols.availability(), cols.price());
+        } else {
+            log.warn("Mapping colonnes non déterminé — fallback indexé (A:H).");
+        }
+
         for (List<Object> row : values) {
             rowNum++;
-            if (rowNum == 1) {
-                log.info("En-tête: {}", row);
-                continue;
+            if (headerIdx0 >= 0) {
+                // Ignore toutes les lignes jusqu'à l'en-tête inclus
+                if (rowNum <= headerIdx0 + 1) {
+                    continue;
+                }
+            } else {
+                // Compat historique : 1ère ligne = en-tête
+                if (rowNum == 1) {
+                    log.info("En-tête (fallback): {}", row);
+                    continue;
+                }
             }
             if (rowNum <= 4) {
                 log.info("[DEBUG] Ligne {}: {}", rowNum, row);
             }
             try {
-                String externalId = normalizeExternalIdKey(SafeGet(row, 0));
+                int externalIdIdx = cols != null ? cols.externalId() : 0;
+                String externalId = normalizeExternalIdKey(SafeGet(row, externalIdIdx));
                 if (!externalId.isEmpty()) {
                     sheetExternalIds.add(externalId);
                 }
                 if (rowNum % 50 == 0) {
                     log.info("Progression: {} lignes…", rowNum);
                 }
-                boolean isNew = processRow(row, summary, rowNum);
+                boolean isNew = processRow(row, summary, rowNum, cols);
                 processedCount++;
                 if (isNew) {
                     summary.incrementCreated();
@@ -526,19 +665,27 @@ public class GoogleSheetsService {
         log.info("Traitement terminé: {} lignes données, {} erreurs ligne", processedCount, skippedCount);
     }
 
-    private boolean processRow(List<Object> row, ImportSummary summary, int rowNum) {
+    private boolean processRow(List<Object> row, ImportSummary summary, int rowNum, ProductSheetColumns cols) {
         summary.incrementTotal();
 
-        // Mapping USER: ID, Photo, Nom, Mode d'emploi, Volume_poids, Categorie, Disponibilité, Prix
-        // Index:      0   1      2    3                4             5          6              7
-        String externalId = normalizeExternalIdKey(SafeGet(row, 0));
-        String imageUrl = SafeGet(row, 1);
-        String name = SafeGet(row, 2);
-        String description = SafeGet(row, 3); // Mode d'emploi
-        String volumeWeight = SafeGet(row, 4); // Volume_poids (ex: "50ml", "100g")
-        String categoryName = SafeGet(row, 5);
-        String availabilityStr = SafeGet(row, 6);
-        String priceStr = SafeGet(row, 7);
+        // Mapping par en-tête si disponible, sinon index historique A:H
+        int externalIdIdx = cols != null ? cols.externalId() : 0;
+        int imageIdx = cols != null ? cols.imageUrl() : 1;
+        int nameIdx = cols != null ? cols.name() : 2;
+        int descIdx = cols != null ? cols.description() : 3;
+        int volIdx = cols != null ? cols.volumeWeight() : 4;
+        int catIdx = cols != null ? cols.categoryName() : 5;
+        int availIdx = cols != null ? cols.availability() : 6;
+        int priceIdx = cols != null ? cols.price() : 7;
+
+        String externalId = normalizeExternalIdKey(SafeGet(row, externalIdIdx));
+        String imageUrl = SafeGet(row, imageIdx);
+        String name = SafeGet(row, nameIdx);
+        String description = SafeGet(row, descIdx); // Mode d'emploi
+        String volumeWeight = SafeGet(row, volIdx); // Volume_poids (ex: "50ml", "100g")
+        String categoryName = SafeGet(row, catIdx);
+        String availabilityStr = SafeGet(row, availIdx);
+        String priceStr = SafeGet(row, priceIdx);
 
         log.info("📝 [ROW {}] Processing: ID={}, Name={}, Category={}, Price={}, Availability={}",
             rowNum, externalId, name, categoryName, priceStr, availabilityStr);
