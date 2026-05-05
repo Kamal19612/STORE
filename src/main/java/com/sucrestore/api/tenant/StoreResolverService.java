@@ -1,7 +1,7 @@
 package com.sucrestore.api.tenant;
 
 import java.util.Locale;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -10,7 +10,9 @@ import com.sucrestore.api.entity.Store;
 import com.sucrestore.api.repository.StoreRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StoreResolverService {
@@ -65,11 +67,20 @@ public class StoreResolverService {
             return byHostLabel.get();
         }
 
-        // 3) Header X-Store-Code (kept for backwards compatibility and super-admin cross-store operations)
+        Optional<Store> byHostLabelAlias = findByHostLabelAliasMappedStore(host);
+        if (byHostLabelAlias.isPresent()) {
+            return byHostLabelAlias.get();
+        }
+
+        // 3) Header X-Store-Code — code inconnu : ignorer avec warning (localStorage obsolète / typo)
+        //    plutôt que 400 sur les routes vitrine (/api/products/...).
         String code = normalize(storeCodeHeader);
         if (code != null) {
-            return storeRepository.findByCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown store code: " + code));
+            Optional<Store> byHeader = storeRepository.findByCode(code);
+            if (byHeader.isPresent()) {
+                return byHeader.get();
+            }
+            log.warn("[tenant] Ignored unknown {} '{}' (fall back to strict/default)", STORE_HEADER, code);
         }
 
         // 4) Strict mode: reject if store cannot be resolved
@@ -86,19 +97,42 @@ public class StoreResolverService {
      * When {@code stores.domain} has no row for this host, try the first hostname label as {@code stores.code}
      * (e.g. {@code spirit.example.com} → code {@code spirit}).
      */
-    private Optional<Store> findByFirstHostLabelAsStoreCode(String normalizedHost) {
+    private Optional<String> firstHostLabel(String normalizedHost) {
         if (normalizedHost == null || !normalizedHost.contains(".")) {
             return Optional.empty();
         }
         int dot = normalizedHost.indexOf('.');
-        String first = normalizedHost.substring(0, dot);
+        String first = normalizedHost.substring(0, dot).toLowerCase(Locale.ROOT);
         if (first.isBlank() || first.length() < 2) {
             return Optional.empty();
         }
         if ("www".equals(first) || "localhost".equals(first)) {
             return Optional.empty();
         }
-        return storeRepository.findByCode(first);
+        return Optional.of(first);
+    }
+
+    private Optional<Store> findByFirstHostLabelAsStoreCode(String normalizedHost) {
+        Optional<String> firstOpt = firstHostLabel(normalizedHost);
+        return firstOpt.flatMap(storeRepository::findByCode);
+    }
+
+    /** Ex. sous-domaine {@code sucrestore} → configuré comme alias de {@code sucre}. */
+    private Optional<Store> findByHostLabelAliasMappedStore(String normalizedHost) {
+        Optional<String> label = firstHostLabel(normalizedHost);
+        if (label.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, String> aliases = tenantProperties.getHostLabelToStoreCode();
+        if (aliases == null || aliases.isEmpty()) {
+            return Optional.empty();
+        }
+        String mapped = aliases.get(label.get());
+        if (mapped == null || mapped.isBlank()) {
+            return Optional.empty();
+        }
+        String normalizedCode = normalize(mapped);
+        return normalizedCode != null ? storeRepository.findByCode(normalizedCode) : Optional.empty();
     }
 
     private String normalize(String v) {

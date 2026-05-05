@@ -115,19 +115,24 @@ const ProductCard = ({ product }) => {
           </button>
 
           <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-[5]">
-            {isArchived && (
-              <div className="text-white text-xs px-2 py-1 rounded bg-gray-700 font-semibold">
-                Archivé
-              </div>
-            )}
-            {!isArchived && !isPurchasable && (
+            {stockNum === 0 && (
               <div
-                className="text-white text-xs px-2 py-1 rounded"
+                className="text-white text-xs px-2 py-1 rounded font-semibold"
                 style={{ backgroundColor: "var(--secondary)" }}
               >
-                {isRuptureOnly ? "Rupture de stock" : "Non disponible"}
+                Indisponible
               </div>
             )}
+            {!isArchived &&
+              !isPurchasable &&
+              !(purchaseAllowed && stockNum === 0) && (
+                <div
+                  className="text-white text-xs px-2 py-1 rounded"
+                  style={{ backgroundColor: "var(--secondary)" }}
+                >
+                  Non disponible
+                </div>
+              )}
           </div>
         </div>
 
@@ -190,10 +195,8 @@ const ProductCard = ({ product }) => {
                 className="bg-gray-400 text-white px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg cursor-not-allowed"
                 disabled
                 title={
-                  isArchived
-                    ? "Produit archivé"
-                    : isRuptureOnly
-                      ? "Rupture de stock"
+                  isRuptureOnly
+                      ? "Indisponible"
                       : "Non disponible à la vente"
                 }
               >

@@ -89,18 +89,30 @@ public class ProductServiceTest {
     }
 
     @Test
-    void testGetAllActiveProducts() {
+    void testGetPublicCatalogPage() {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Product> productPage = new PageImpl<>(List.of(product));
 
-        when(productRepository.findByStoreId(1L, pageable)).thenReturn(productPage);
+        when(productRepository.findCatalogPageAllStatuses(1L, pageable)).thenReturn(productPage);
 
-        Page<ProductResponse> result = productService.getAllActiveProducts(pageable);
+        Page<ProductResponse> result = productService.getPublicCatalogPage(pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals("Laptop", result.getContent().get(0).getName());
-        verify(productRepository, times(1)).findByStoreId(1L, pageable);
+        verify(productRepository, times(1)).findCatalogPageAllStatuses(1L, pageable);
+    }
+
+    @Test
+    void testGetPublicCatalogFullList() {
+        when(productRepository.findCatalogListAllStatuses(1L)).thenReturn(List.of(product));
+
+        List<ProductResponse> result = productService.getPublicCatalogFullList();
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Laptop", result.get(0).getName());
+        verify(productRepository, times(1)).findCatalogListAllStatuses(1L);
     }
 
     @Test

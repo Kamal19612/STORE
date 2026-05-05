@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.sucrestore.api.entity.Product;
@@ -50,7 +51,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
      */
     Page<Product> findByNameContainingIgnoreCaseAndActiveTrue(String name, Pageable pageable);
 
-    Page<Product> findByStoreId(Long storeId, Pageable pageable);
+    /**
+     * Catalogue magasin sans filtre sur {@code active}, stock ou achat —
+     * même jeu que la liste admin (rupture + archivés inclus).
+     */
+    @Query("SELECT p FROM Product p WHERE p.store.id = :storeId")
+    Page<Product> findCatalogPageAllStatuses(@Param("storeId") Long storeId, Pageable pageable);
+
+    /** Même jeu que {@link #findCatalogPageAllStatuses} mais liste complète (équivalent sucre-store avant {@code paginateProducts}). */
+    @Query("SELECT p FROM Product p WHERE p.store.id = :storeId ORDER BY p.id DESC")
+    List<Product> findCatalogListAllStatuses(@Param("storeId") Long storeId);
 
     Page<Product> findByStoreIdAndCategoryId(Long storeId, Long categoryId, Pageable pageable);
 

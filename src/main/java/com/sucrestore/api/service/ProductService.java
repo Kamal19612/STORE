@@ -41,13 +41,43 @@ public class ProductService {
 
     /**
      * Liste paginée pour le catalogue public : tous les produits du magasin (même liste que l’admin),
-     * pour afficher aussi les ruptures / fiches encore {@code active=false} sans filtre côté SQL.
+     * sans filtre sur archivés ({@code active}) ni sur le stock ({@link #findCatalogPageAllStatuses}).
+     */
+    private Page<Product> paginateCatalogForCurrentStore(Pageable pageable) {
+        Long storeId = StoreContext.getStoreIdOrNull();
+        if (storeId == null) {
+            log.warn("Catalogue produits : aucun magasin résolu (StoreContext) — retour page vide "
+                + "pour éviter une requête ambiguë (ex. STORE_ID IS NULL).");
+            return Page.empty(pageable);
+        }
+        Page<Product> page = productRepository.findCatalogPageAllStatuses(storeId, pageable);
+        log.debug("Catalogue storeId={} : page {} / {} — {} lignes dans la page (total {})",
+            storeId, page.getNumber() + 1, Math.max(1, page.getTotalPages()),
+            page.getNumberOfElements(), page.getTotalElements());
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getPublicCatalogPage(Pageable pageable) {
+        return paginateCatalogForCurrentStore(pageable).map(this::mapToResponse);
+    }
+
+    /**
+     * Catalogue complet du magasin en une fois (sans pagination), comme {@code getProducts()}
+     * dans {@code sucre-store/functions.php} avant {@code paginateProducts}.
      */
     @Transactional(readOnly = true)
-    public Page<ProductResponse> getAllActiveProducts(Pageable pageable) {
+    public List<ProductResponse> getPublicCatalogFullList() {
         Long storeId = StoreContext.getStoreIdOrNull();
-        return productRepository.findByStoreId(storeId, pageable)
-                .map(this::mapToResponse);
+        if (storeId == null) {
+            log.warn("Catalogue produits complet : aucun magasin résolu — liste vide.");
+            return List.of();
+        }
+        List<ProductResponse> list = productRepository.findCatalogListAllStatuses(storeId).stream()
+                .map(this::mapToResponse)
+                .toList();
+        log.debug("Catalogue complet storeId={} : {} produit(s)", storeId, list.size());
+        return list;
     }
 
     /**
@@ -148,9 +178,7 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public Page<ProductResponse> getAllProducts(Pageable pageable) {
-        Long storeId = StoreContext.getStoreIdOrNull();
-        return productRepository.findByStoreId(storeId, pageable)
-                .map(this::mapToResponse);
+        return paginateCatalogForCurrentStore(pageable).map(this::mapToResponse);
     }
 
     /**

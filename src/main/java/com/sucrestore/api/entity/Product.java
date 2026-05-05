@@ -1,4 +1,4 @@
-package com.sucrestore.api.entity;
+ package com.sucrestore.api.entity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,7 +138,9 @@ public class Product {
      * Autorisation d'achat (aligné DISPONIBILITÉ PHP : DISPONIBLE, OUI, 1, TRUE).
      * Distinct du stock (rupture) et de {@link #active} (fiche retirée / INACTIF).
      */
-    @Column(name = "purchase_allowed", nullable = false)
+    // NOTE: this column was added after initial deploys; default=true avoids startup failures
+    // when using schema auto-update against existing rows.
+    @Column(name = "purchase_allowed", nullable = false, columnDefinition = "boolean default true")
     @Builder.Default
     private boolean purchaseAllowed = true;
 

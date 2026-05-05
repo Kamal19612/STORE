@@ -103,6 +103,12 @@ orders:
     sync-rate: 60000
     sync-initial-delay: 45000 # décalé par rapport à la synchro produits pour limiter la charge au démarrage
 
+tenant:
+  # Segment Host avant le premier point : code boutique DB (stores.code).
+  # Ex. boutique en base "sucre" mais DNS sucrestore.domaine.tld → évite 400 "Unknown store".
+  host-label-to-store-code:
+    sucrestore: sucre
+
 server:
   port: 8081
   shutdown: immediate   # Fermeture immédiate — évite le blocage par les connexions SSE longue durée

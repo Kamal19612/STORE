@@ -126,6 +126,22 @@ const ProductDetailModal = ({ product, onClose }) => {
                 </p>
               </div>
 
+              <div className="mb-4 flex flex-wrap gap-2">
+                {stockNum === 0 && (
+                  <span
+                    className="text-xs font-semibold px-2 py-1 rounded text-white"
+                    style={{ backgroundColor: "var(--secondary)" }}
+                  >
+                    Rupture de stock
+                  </span>
+                )}
+                {isArchived && (
+                  <span className="text-xs font-semibold px-2 py-1 rounded text-white bg-gray-700">
+                    Produit archivé
+                  </span>
+                )}
+              </div>
+
               <div className="mb-4">
                 <h3
                   className="font-bold mb-1 text-sm sm:text-base"

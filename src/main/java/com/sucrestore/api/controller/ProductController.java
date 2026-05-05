@@ -43,8 +43,8 @@ public class ProductController {
     }
 
     /**
-     * GET /api/products : Liste paginée des produits. Filtres optionnels :
-     * ?category=1 ou ?search=gadget Pagination par défaut : 10 items par page.
+     * GET /api/products : Liste paginée de tous les produits du magasin (ruptures et archivés inclus).
+     * Filtres optionnels : ?category=1 ou ?search=gadget Pagination par défaut : 50 items.
      */
     @GetMapping("/products")
     public ResponseEntity<Page<ProductResponse>> getProducts(
@@ -60,7 +60,25 @@ public class ProductController {
             return ResponseEntity.ok(productService.searchProducts(search, pageable));
         }
 
-        return ResponseEntity.ok(productService.getAllActiveProducts(pageable));
+        return ResponseEntity.ok(productService.getPublicCatalogPage(pageable));
+    }
+
+    /**
+     * GET /api/products/full : catalogue complet du magasin (archivés + ruptures),
+     * aligné {@code sucre-store} {@code fetchProductData} + tous les lignes avant pagination client.
+     * Déclaré avant {@code /products/{slug}} pour éviter « full » comme slug.
+     */
+    @GetMapping("/products/full")
+    public ResponseEntity<List<ProductResponse>> getFullPublicCatalog() {
+        return ResponseEntity.ok(productService.getPublicCatalogFullList());
+    }
+
+    /**
+     * GET /api/public/products/full : alias public sans collision avec /api/products/{slug}.
+     */
+    @GetMapping("/public/products/full")
+    public ResponseEntity<List<ProductResponse>> getFullPublicCatalogPublicAlias() {
+        return ResponseEntity.ok(productService.getPublicCatalogFullList());
     }
 
     /**
@@ -75,7 +93,8 @@ public class ProductController {
     /**
      * GET /api/products/{slug} : Détail d'un produit.
      */
-    @GetMapping("/products/{slug}")
+    // Exclude reserved literals like "full" and "top" from slug matching.
+    @GetMapping("/products/{slug:^(?!full$|top$).+}")
     public ResponseEntity<ProductResponse> getProductDetail(@PathVariable String slug) {
         return ResponseEntity.ok(productService.getProductBySlug(slug));
     }

@@ -3,10 +3,12 @@
  * {@code getProducts($category, $availableOnly)} :
  * - toutes les fiches passent dans la grille par défaut ;
  * - une ligne n’est exclue pour « disponibilité » que si {@code $availableOnly === true}
- *   (équivalent PHP : {@code if ($availableOnly === true && !$product['disponible']) continue;}).
+ *   ({@code if ($availableOnly === true && !$product['disponible']) continue;}).
  *
- * L’équivalent de {@code disponible} côté API Spring est surtout {@code purchaseAllowed}
- * (colonne DISPONIBILITÉ) ; en secours on utilise {@code available} si {@code purchaseAllowed} est absent.
+ * Dans le PHP, {@code disponible} vient uniquement de la colonne DISPONIBILITÉ,
+ * pas du stock ({@code $product['stock']}) ni d’un état « archivé ».
+ * Côté API : utiliser uniquement {@code purchaseAllowed} ; ne pas prendre {@code available}
+ * (qui mélange stock + active + DISPONIBILITÉ).
  */
 
 export function normalizeCategoryLabel(value) {
@@ -36,9 +38,7 @@ export function isDisponibleLikePhp(product) {
   if (product != null && typeof product.purchaseAllowed === "boolean") {
     return product.purchaseAllowed;
   }
-  if (product != null && typeof product.available === "boolean") {
-    return product.available;
-  }
+  /* PHP : cellule DISPONIBILITE vide → valeur par défaut OUI ({@see parseProduct}) */
   return true;
 }
 

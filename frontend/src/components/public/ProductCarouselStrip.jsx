@@ -11,7 +11,7 @@ export default function ProductCarouselStrip({ products }) {
     : Array.isArray(products?.content)
       ? products.content
       : [];
-  const visible = safeProducts.filter((p) => p?.mainImage);
+  const visible = safeProducts.filter(Boolean);
 
   if (visible.length === 0) return null;
 
@@ -86,12 +86,20 @@ export default function ProductCarouselStrip({ products }) {
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 shadow-md shrink-0"
                     style={{ borderColor: "var(--primary)" }}
                   >
-                    <img
-                      src={product.mainImage}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
+                    {product.mainImage ? (
+                      <img
+                        src={product.mainImage}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+                        <span className="text-[10px] font-semibold px-1 text-center leading-tight">
+                          Sans image
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <span
                     className="text-[10px] font-semibold text-center leading-tight line-clamp-2 w-full px-1"

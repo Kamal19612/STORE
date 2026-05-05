@@ -69,7 +69,7 @@ public class ProductControllerTest {
                 .stock(10)
                 .build();
         Page<ProductResponse> page = new PageImpl<>(List.of(productResponse));
-        when(productService.getAllActiveProducts(any(Pageable.class))).thenReturn(page);
+        when(productService.getPublicCatalogPage(any(Pageable.class))).thenReturn(page);
 
         mockMvc.perform(get("/api/products")
                 .contentType(MediaType.APPLICATION_JSON))

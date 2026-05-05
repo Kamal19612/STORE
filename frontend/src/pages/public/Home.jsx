@@ -30,7 +30,14 @@ const Home = () => {
           productService.getFullProductCatalog(),
           productService.getTopProducts(10),
         ]);
-        setProducts(data.content || []);
+        const list = data.content || [];
+        if (import.meta.env.DEV) {
+          console.debug(
+            "[catalog public] produits après agrégation des pages:",
+            list.length,
+          );
+        }
+        setProducts(list);
         setTopProducts(top || []);
       } catch (err) {
         console.error("Erreur lors du chargement des produits:", err);

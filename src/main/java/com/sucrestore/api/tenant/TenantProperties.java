@@ -1,5 +1,8 @@
 package com.sucrestore.api.tenant;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -17,12 +20,26 @@ public class TenantProperties {
      */
     private boolean requireExplicitStore = false;
 
+    /**
+     * Premier segment du Host (ex. {@code sucrestore} dans {@code sucrestore.socialracine.com}) → {@code stores.code}
+     * quand ils diffèrent (ex. sous-domaine marketing ≠ code boutique DB {@code sucre}).
+     */
+    private Map<String, String> hostLabelToStoreCode = new LinkedHashMap<>();
+
     public boolean isRequireExplicitStore() {
         return requireExplicitStore;
     }
 
     public void setRequireExplicitStore(boolean requireExplicitStore) {
         this.requireExplicitStore = requireExplicitStore;
+    }
+
+    public Map<String, String> getHostLabelToStoreCode() {
+        return hostLabelToStoreCode;
+    }
+
+    public void setHostLabelToStoreCode(Map<String, String> hostLabelToStoreCode) {
+        this.hostLabelToStoreCode = hostLabelToStoreCode != null ? hostLabelToStoreCode : new LinkedHashMap<>();
     }
 }
 
