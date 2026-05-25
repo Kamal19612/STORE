@@ -1,5 +1,6 @@
 package com.sucrestore.api.tenant;
 
+import org.springframework.core.annotation.Order;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Component
 @RequiredArgsConstructor
+@Order(10)
 public class StoreBootstrap implements ApplicationRunner {
 
     private final StoreRepository storeRepository;

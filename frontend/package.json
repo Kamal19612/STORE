@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "concurrently -n FRONT,BACK -c blue,green \"npm run frontend\" \"npm run backend\"",
     "frontend": "vite --host 0.0.0.0",
-    "backend": "cd ../ && bash -c '. ./scripts/load-supabase-env.sh && mvn spring-boot:run'",
+    "store:setup": "bash ../scripts/store-local-setup.sh",
+    "store:setup:env": "bash ../scripts/store-local-setup.sh --env-only",
+    "store:refresh-keys": "bash ../scripts/supabase-refresh-local-keys.sh",
+    "backend": "cd ../ && bash -c 'unset DB_JDBC_URL DB_PORT DB_HOST DB_PASSWORD SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY 2>/dev/null; . ./scripts/load-supabase-env.sh && mvn spring-boot:run'",
     "prod": "concurrently -n FRONT,BACK -c blue,green \"npm run frontend:prod\" \"npm run backend:prod\"",
     "frontend:prod": "vite preview --host 0.0.0.0 --port 4173",
-    "backend:prod": "cd ../ && bash -c '. ./scripts/load-supabase-env.sh && exec java -jar target/sucre-store-api-0.0.1-SNAPSHOT.jar'",
+    "backend:prod": "cd ../ && bash -c 'unset DB_JDBC_URL DB_PORT DB_HOST DB_PASSWORD SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY 2>/dev/null; . ./scripts/load-supabase-env.sh && exec java -jar target/sucre-store-api-0.0.1-SNAPSHOT.jar'",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

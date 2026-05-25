@@ -6,12 +6,10 @@ import {
   updateSettings,
   resetStats,
   syncProducts,
-  registerTelegramWebhook,
   getTelegramWebhookInfo,
-  unregisterTelegramWebhook,
   sendTelegramTest,
 } from "../../services/api";
-import { Save, Settings, Trash2, RefreshCw, CheckCircle } from "lucide-react";
+import { Save, Settings, Trash2, CheckCircle } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 
 const inputCls =
@@ -29,7 +27,6 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [telegramWebhookLoading, setTelegramWebhookLoading] = useState(false);
   const [telegramInfoLoading, setTelegramInfoLoading] = useState(false);
   const [telegramActionLoading, setTelegramActionLoading] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState("");
@@ -98,27 +95,6 @@ const AdminSettings = () => {
     }
   };
 
-  const handleRegisterTelegramWebhook = async () => {
-    setTelegramWebhookLoading(true);
-    try {
-      const res = await registerTelegramWebhook();
-      const ok = res?.data?.success;
-      const attempted = res?.data?.attempted;
-      if (ok) {
-        toast.success("Webhook Telegram activé (boutons ✅/❌).");
-      } else if (attempted === false) {
-        toast.error("Webhook non activé: vérifiez Telegram Bot Token + TELEGRAM_WEBHOOK_URL.");
-      } else {
-        toast.error(`Échec activation webhook Telegram: ${res?.data?.message || "inconnu"}`);
-      }
-    } catch (error) {
-      console.error("Erreur activation webhook Telegram:", error);
-      toast.error("Erreur lors de l'activation du webhook Telegram.");
-    } finally {
-      setTelegramWebhookLoading(false);
-    }
-  };
-
   const handleTelegramWebhookInfo = async () => {
     setTelegramInfoLoading(true);
     try {
@@ -131,23 +107,6 @@ const AdminSettings = () => {
       toast.error("Impossible de récupérer le statut du webhook Telegram.");
     } finally {
       setTelegramInfoLoading(false);
-    }
-  };
-
-  const handleUnregisterTelegramWebhook = async () => {
-    setTelegramActionLoading(true);
-    try {
-      const res = await unregisterTelegramWebhook();
-      if (res?.data?.success) {
-        toast.success("Webhook Telegram désactivé.");
-      } else {
-        toast.error(`Échec désactivation webhook: ${res?.data?.message || "inconnu"}`);
-      }
-    } catch (error) {
-      console.error("Erreur désactivation webhook Telegram:", error);
-      toast.error("Erreur lors de la désactivation du webhook Telegram.");
-    } finally {
-      setTelegramActionLoading(false);
     }
   };
 
@@ -253,21 +212,12 @@ const AdminSettings = () => {
 
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg flex flex-col gap-2">
                 <div className="text-xs text-blue-700 dark:text-blue-300">
-                  <p className="font-semibold">Activer les boutons Telegram (webhook)</p>
+                  <p className="font-semibold">Webhook Telegram</p>
                   <p>
-                    À faire après avoir enregistré le <strong>Bot Token</strong> et le <strong>Chat ID</strong>.
+                    Le webhook est <strong>toujours actif</strong> (enregistrement automatique côté serveur).
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    disabled={telegramWebhookLoading}
-                    onClick={handleRegisterTelegramWebhook}
-                    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${telegramWebhookLoading ? "animate-spin" : ""}`} />
-                    {telegramWebhookLoading ? "Activation..." : "Activer le webhook"}
-                  </button>
                   <button
                     type="button"
                     disabled={telegramInfoLoading}
@@ -280,14 +230,6 @@ const AdminSettings = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                  <button
-                    type="button"
-                    disabled={telegramActionLoading}
-                    onClick={handleUnregisterTelegramWebhook}
-                    className="flex-1 flex items-center justify-center gap-2 bg-white/80 hover:bg-white text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 text-sm dark:bg-red-950/10 dark:hover:bg-red-950/20 dark:text-red-200 dark:border-red-900/30"
-                  >
-                    Désactiver webhook
-                  </button>
                   <button
                     type="button"
                     disabled={telegramActionLoading}

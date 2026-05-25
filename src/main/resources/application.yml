@@ -110,7 +110,8 @@ tenant:
     sucrestore: sucre
 
 server:
-  port: 8081
+  # 8081 est souvent pris par Supabase Functions (edge-runtime) en Docker sur ce serveur.
+  port: 8082
   shutdown: immediate   # Fermeture immédiate — évite le blocage par les connexions SSE longue durée
   # Behind reverse proxies, ensure Spring uses X-Forwarded-* headers (Host, Proto, Port).
   forward-headers-strategy: framework

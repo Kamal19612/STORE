@@ -46,17 +46,25 @@ public class TelegramService {
 
     private TelegramConfig resolveConfigPreferDb() {
         if (appSettingService != null) {
-            String dbToken = appSettingService.getSettingValue("telegram_bot_token").orElse("");
-            String dbChatId = appSettingService.getSettingValue("telegram_chat_id").orElse("");
+            String dbToken = appSettingService.getSettingValue("telegram_bot_token").orElse("").trim();
+            String dbChatId = appSettingService.getSettingValue("telegram_chat_id").orElse("").trim();
             if (!dbToken.isBlank() && !dbChatId.isBlank()) {
                 return new TelegramConfig(dbToken, dbChatId, TelegramConfig.Source.DB);
             }
         }
-        return new TelegramConfig(botToken, defaultChatId, TelegramConfig.Source.ENV);
+        return new TelegramConfig(
+            botToken == null ? "" : botToken.trim(),
+            defaultChatId == null ? "" : defaultChatId.trim(),
+            TelegramConfig.Source.ENV
+        );
     }
 
     private TelegramConfig resolveEnvConfig() {
-        return new TelegramConfig(botToken, defaultChatId, TelegramConfig.Source.ENV);
+        return new TelegramConfig(
+            botToken == null ? "" : botToken.trim(),
+            defaultChatId == null ? "" : defaultChatId.trim(),
+            TelegramConfig.Source.ENV
+        );
     }
 
     // Compat interne (autres méthodes du service) : config préférée DB.

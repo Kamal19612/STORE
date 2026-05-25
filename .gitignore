@@ -33,9 +33,9 @@ build/
 .vscode/
 
 ### Google Credentials ###
-### credentials.json ###
-### src/main/resources/credentials.json ###
-### node_modules ###
+ credentials.json
+ src/main/resources/credentials.json
+ node_modules
 
 ### Logs ###
 *.log

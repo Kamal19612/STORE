@@ -1,5 +1,6 @@
 import { toast } from "react-toastify";
 import useCartStore from "../../store/cartStore";
+import ProductImageCarousel from "./ProductImageCarousel";
 
 const ProductDetailModal = ({ product, onClose }) => {
   const addItem = useCartStore((state) => state.addItem);
@@ -76,17 +77,12 @@ const ProductDetailModal = ({ product, onClose }) => {
           <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Image + catégorie */}
             <div>
-              {product.mainImage ? (
-                <img
-                  src={product.mainImage}
-                  alt={product.name}
-                  className="w-full h-44 sm:h-64 object-cover rounded-lg"
-                />
-              ) : (
-                <div className="w-full h-44 sm:h-64 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <i className="fas fa-image text-5xl text-gray-400"></i>
-                </div>
-              )}
+              <ProductImageCarousel
+                key={product.id}
+                mainImage={product.mainImage}
+                secondaryImages={product.secondaryImages}
+                alt={product.name}
+              />
               <div className="mt-3">
                 <span
                   className="text-xs font-semibold px-3 py-1 rounded-full"

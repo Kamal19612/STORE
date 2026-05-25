@@ -54,6 +54,10 @@ public class AppSettingService {
                 setting.setValue(normalizeWhatsAppNumber(value));
             } else if ("customer_whatsapp_dial_code".equals(key)) {
                 setting.setValue(normalizeDialCode(value));
+            } else if ("telegram_bot_token".equals(key)) {
+                setting.setValue(value == null ? "" : value.trim());
+            } else if ("telegram_chat_id".equals(key)) {
+                setting.setValue(value == null ? "" : value.trim());
             } else {
                 setting.setValue(value);
             }

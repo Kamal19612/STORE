@@ -49,29 +49,40 @@ const AdminProductForm = () => {
     loadCategories();
   }, []);
 
-  // Charger le produit une fois les catégories disponibles
+  // Charger le produit en édition (indépendamment des catégories : la liste peut être vide)
   useEffect(() => {
-    if (!isEditMode || categories.length === 0) return;
+    if (!isEditMode || !id) return;
 
     adminProductService
       .getProductById(id)
       .then((product) => {
+        const priceStr =
+          product.price != null && product.price !== ""
+            ? String(product.price).replace(",", ".")
+            : "";
+        const oldPriceStr =
+          product.oldPrice != null && product.oldPrice !== ""
+            ? String(product.oldPrice).replace(",", ".")
+            : "";
         setFormData({
-          name: product.name,
-          slug: product.slug,
-          categoryId: product.categoryId || "",
-          categoryName: product.categoryName || "",
-          price: product.price,
-          oldPrice: product.oldPrice || "",
+          name: product.name ?? "",
+          slug: product.slug ?? "",
+          categoryId: product.categoryId ?? "",
+          categoryName: product.categoryName ?? "",
+          price: priceStr,
+          oldPrice: oldPriceStr,
           stock: product.stock ?? 0,
-          shortDescription: product.shortDescription || "",
-          description: product.description || "",
+          shortDescription: product.shortDescription ?? "",
+          description: product.description ?? "",
           imageUrl: "",
-          active: product.active,
+          active: Boolean(product.active),
           purchaseAllowed: product.purchaseAllowed !== false,
         });
         setExistingMainImageUrl(product.mainImage || null);
-        setExistingSecondaryImages(product.secondaryImages || []);
+        const secondaries = Array.isArray(product.secondaryImages)
+          ? product.secondaryImages
+          : [];
+        setExistingSecondaryImages(secondaries);
         setMainImageFile(null);
         setSecondaryImageFiles([]);
       })
@@ -79,7 +90,7 @@ const AdminProductForm = () => {
         console.error(e);
         toast.error("Erreur chargement produit");
       });
-  }, [categories, isEditMode, id]);
+  }, [isEditMode, id]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -180,7 +191,7 @@ const AdminProductForm = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-8 pb-24">
         <div className="bg-white dark:bg-[#242021] p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 space-y-6 transition-colors">
           {/* Informations de base */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -363,25 +374,27 @@ const AdminProductForm = () => {
         </div>
 
         {/* Boutons actions */}
-        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => navigate("/admin/products")}
-            className="px-6 py-3 rounded-xl border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-          >
-            Annuler
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
-          >
-            {loading && (
-              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-            )}
-            <Save className="h-5 w-5" />
-            {isEditMode ? "Enregistrer les modifications" : "Créer le produit"}
-          </button>
+        <div className="sticky bottom-0 z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 py-3 bg-gray-50/95 dark:bg-[#1c191a]/90 backdrop-blur border-t border-gray-200/60 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/products")}
+              className="px-6 py-3 rounded-xl border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {loading && (
+                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+              )}
+              <Save className="h-5 w-5" />
+              {isEditMode ? "Enregistrer les modifications" : "Enregistrer"}
+            </button>
+          </div>
         </div>
       </form>
     </div>
