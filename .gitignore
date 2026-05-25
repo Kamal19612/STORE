@@ -32,10 +32,30 @@ build/
 ### VS Code ###
 .vscode/
 
-### Google Credentials ###
- credentials.json
- src/main/resources/credentials.json
- node_modules
+### Node ###
+node_modules/
+frontend/.vite/
+frontend/dist/
 
-### Logs ###
+### Google Cloud credentials (ne jamais committer) ###
+credentials.json
+**/credentials.json
+src/main/resources/credentials.json
+src/main/resources/sucre-store-*.json
+
+### Env local ###
+.env
+.env.*
+frontend/.env
+supabase/.env
+!supabase/.env.example
+!frontend/.env.example
+
+### Logs & uploads générés ###
 *.log
+logs/
+uploads/
+
+### Divers ###
+.backend.pid
+nohup.out
